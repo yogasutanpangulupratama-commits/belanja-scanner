@@ -282,11 +282,10 @@
             <div class="st-sub" id="scanStatus">Menyiapkan kamera...</div>
         </div>
         <button class="btn-close-scan" onclick="closeScanScreen()">✕ Tutup</button>
-    </div>
-    <div class="scan-video-wrap">
-        <video id="scanVideo" autoplay playsinline muted></video>
-        <div class="scan-frame" id="scanFrame"></div>
-        <div class="scan-frame-label" id="scanFrameLabel">arahkan angka harga ke dalam kotak</div>
+    </div>        <div class="scan-video-wrap" id="scanVideoWrap">
+            <video id="scanVideo" autoplay playsinline muted></video>
+            <div class="scan-frame" id="scanFrame"></div>
+            <div class="scan-frame-label" id="scanFrameLabel">arahkan harga ke kotak · ketuk layar untuk menggeser</div>
         <div class="scan-ctrl">
             <button onclick="moveBand(-1)" title="Naikkan kotak">▲</button>
             <button onclick="moveBand(1)" title="Turunkan kotak">▼</button>
@@ -473,9 +472,14 @@
     // ================= LAYAR SCAN =================
     let ocrStream = null, ocrWorker = null, ocrTimer = null, ocrBusy = false;
     let tesseractLibPromise = null;
-    let lastReadPrice = 0, stableCount = 0, lastAddTime = 0;
-    const ADD_COOLDOWN = 2000; // jeda antar tambahan otomatis (ms)
-    let bandPos = 0.5, torchOn = false, zoomIdx = 0, ocrRunning = false, tickParity = 0, voteRaw = '';
+    let lastAddTime = 0, lastVideoTime = -1;
+    const ADD_COOLDOWN = 1800;   // jeda antar tambahan otomatis (ms)
+    const VOTES_NEEDED = 3;      // suara minimal untuk mengunci harga
+    const VOTE_WINDOW_MS = 4500; // jendela waktu voting
+    const SHARP_MIN = 50;        // ambang ketajaman frame (Laplacian variance)
+    let votes = [];              // kumpulan bacaan {price, t}
+    let bandPos = 0.5, torchOn = false, zoomIdx = 0, ocrRunning = false, tickParity = 0;
+    let cropCanvas = null, sharpCanvas = null;
     const ZOOM_STEPS = [1, 2, 3];
 
     function isSecure() { return window.isSecureContext; }
@@ -537,8 +541,9 @@
         document.getElementById('scanScreen').classList.add('show');
         document.getElementById('scanStatus').textContent = 'Menyiapkan kamera...';
         document.getElementById('detectedPrice').textContent = '—';
+        document.getElementById('detectedPrice').style.color = '#fff';
         document.getElementById('detectedStatus').textContent = 'Mencari angka harga...';
-        lastReadPrice = 0; stableCount = 0; lastAddTime = 0; voteRaw = '';
+        votes = []; lastVideoTime = -1; tickParity = 0; lastAddTime = 0;
         try {
             ocrStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
@@ -546,6 +551,7 @@
             const video = document.getElementById('scanVideo');
             video.srcObject = ocrStream;
             await video.play();
+            enableContinuousFocus();
             document.getElementById('scanStatus').textContent = 'Kamera aktif ✅';
         } catch (e) {
             closeScanScreen();
@@ -626,7 +632,8 @@
         const r = getBoxCropRect(video);
         if (r.vwid < 10 || r.vhei < 6) return null;
         const W = 1000;
-        const c = document.createElement('canvas');
+        if (!cropCanvas) cropCanvas = document.createElement('canvas');
+        const c = cropCanvas;
         c.width = W;
         c.height = Math.max(1, Math.round(r.vhei / r.vwid * W));
         const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -660,55 +667,111 @@
         return c;
     }
 
-    // Loop OCR berkelanjutan: pembacaan berikutnya mulai segera setelah selesai (jauh lebih cepat dari interval tetap)
+    // ===== KETAJAMAN FRAME: hanya frame fokus yang di-OCR (mengurangi salah baca drastis) =====
+    function laplacianVariance(srcCanvas) {
+        if (!sharpCanvas) sharpCanvas = document.createElement('canvas');
+        const sw = 260, sh = Math.max(1, Math.round(srcCanvas.height / srcCanvas.width * sw));
+        sharpCanvas.width = sw; sharpCanvas.height = sh;
+        const sctx = sharpCanvas.getContext('2d', { willReadFrequently: true });
+        sctx.drawImage(srcCanvas, 0, 0, sw, sh);
+        const d = sctx.getImageData(0, 0, sw, sh).data;
+        const g = new Float32Array(sw * sh);
+        for (let i = 0, p = 0; i < g.length; i++, p += 4) g[i] = d[p] * 0.299 + d[p+1] * 0.587 + d[p+2] * 0.114;
+        let sum = 0, sum2 = 0, cnt = 0;
+        for (let y = 1; y < sh - 1; y++) for (let x = 1; x < sw - 1; x++) {
+            const i = y * sw + x;
+            const l = 4*g[i] - g[i-1] - g[i+1] - g[i-sw] - g[i+sw];
+            sum += l; sum2 += l*l; cnt++;
+        }
+        if (!cnt) return 0;
+        const mean = sum / cnt;
+        return sum2 / cnt - mean * mean;
+    }
+
+    // ===== VOTING GESER: harga terkunci bila 3 bacaan cocok dalam jendela 4,5 detik =====
+    function pushVote(price, t) {
+        votes.push({ price: price, t: t });
+        while (votes.length && t - votes[0].t > VOTE_WINDOW_MS) votes.shift();
+        if (votes.length > 10) votes.shift();
+    }
+    function tallyVotes() {
+        const counts = new Map();
+        votes.forEach(v => { if (v.price > 0) counts.set(v.price, (counts.get(v.price) || 0) + 1); });
+        let best = 0, bestC = 0;
+        counts.forEach((c, p) => { if (c > bestC) { bestC = c; best = p; } });
+        return { price: best, count: bestC };
+    }
+    function voteDots(n) {
+        return '●'.repeat(Math.min(n, VOTES_NEEDED)) + '○'.repeat(Math.max(0, VOTES_NEEDED - n));
+    }
+
+    // ===== AUTOFOKUS KONTINU (bila didukung kamera) =====
+    async function enableContinuousFocus() {
+        try {
+            const track = ocrStream && ocrStream.getVideoTracks()[0];
+            if (track && track.getCapabilities) {
+                const caps = track.getCapabilities();
+                if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
+                    await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+                }
+            }
+        } catch (e) { /* diamkan */ }
+    }
+
+    // Loop OCR pintar: hanya frame BARU + TAJAM yang dibaca, bergilir 4 varian (abu/Otsu x 1-baris/blok)
     async function ocrLoop() {
         if (!ocrRunning || !ocrWorker) return;
         const video = document.getElementById('scanVideo');
-        if (!video || video.readyState < 2 || !video.videoWidth) {
-            setTimeout(ocrLoop, 200);
-            return;
-        }
+        if (!video || video.readyState < 2 || !video.videoWidth) { setTimeout(ocrLoop, 150); return; }
+        const t = video.currentTime;
+        if (t === lastVideoTime) { setTimeout(ocrLoop, 70); return; } // frame belum berubah
+        lastVideoTime = t;
+        const statusEl = document.getElementById('detectedStatus');
         ocrBusy = true;
         try {
-            // Siklus 4 varian bacaan: mode citra (abu/Otsu) x mode baris (1 baris/blok)
-            // supaya salah baca di satu varian tidak mengulang terus.
-            const combos = [
-                { bin: false, psm: '7' }, // abu-abu, 1 baris
-                { bin: true,  psm: '6' }, // biner Otsu, blok
-                { bin: false, psm: '6' }, // abu-abu, blok
-                { bin: true,  psm: '7' }  // biner Otsu, 1 baris
-            ];
-            tickParity = (tickParity + 1) % combos.length;
-            await ocrWorker.setParameters({ tessedit_pageseg_mode: combos[tickParity].psm });
-            const canvas = preprocessFrame(video, combos[tickParity].bin);
-            let price = 0, raw = '';
-            if (canvas) {
-                const res = await ocrWorker.recognize(canvas);
-                raw = String((res && res.data && res.data.text) || '').trim();
-                price = parsePriceText(raw);
+            const gray = preprocessFrame(video, false);
+            if (!gray) { setTimeout(ocrLoop, 80); return; }
+            // Gerbang ketajaman: frame blur tidak di-OCR (mencegah salah baca seperti 21.488 tadi)
+            const sharp = laplacianVariance(gray);
+            if (sharp < SHARP_MIN) {
+                statusEl.textContent = 'Fokus dulu — dekatkan kamera perlahan ke label...';
+                setTimeout(ocrLoop, 90);
+                return;
+            }
+            const mode = tickParity; tickParity = (tickParity + 1) % 4;
+            const useOtsu = (mode === 1 || mode === 3);
+            const psm = (mode === 0 || mode === 1) ? '7' : '6';
+            await ocrWorker.setParameters({ tessedit_pageseg_mode: psm });
+            const target = useOtsu ? preprocessFrame(video, true) : gray;
+            const res = await ocrWorker.recognize(target);
+            const raw = String((res && res.data && res.data.text) || '').trim();
+            let price = parsePriceText(raw);
+            if (!price) {
+                // Cadangan: gabungkan deretan digit polos (misal "22 1458" -> 221458)
+                const dig = raw.replace(/\D/g, '');
+                if (dig.length >= 3 && dig.length <= 8) price = Number(dig) || 0;
             }
             handleOcrResult(price, raw);
         } catch (e) { /* lanjut frame berikutnya */ }
         finally { ocrBusy = false; }
-        if (ocrRunning) setTimeout(ocrLoop, 40);
+        if (ocrRunning) setTimeout(ocrLoop, 30);
     }
 
     function handleOcrResult(price, raw) {
         const statusEl = document.getElementById('detectedStatus');
-        if (price > 0) {
-            if (price === lastReadPrice) stableCount++;
-            else { lastReadPrice = price; stableCount = 1; voteRaw = raw; }
-            const priceEl = document.getElementById('detectedPrice');
-            priceEl.textContent = fmtRp(price);
-            // Warna: putih saat masih mengumpulkan suara, hijau saat terkunci
-            priceEl.style.color = stableCount >= 3 ? '#a7f3d0' : '#fff';
-            if (stableCount >= 3 && Date.now() - lastAddTime > ADD_COOLDOWN) {
-                autoAdd(price);
-            } else if (Date.now() - lastAddTime > ADD_COOLDOWN) {
-                statusEl.textContent = 'pembacaan ' + stableCount + '/3 cocok — tetap arahkan ke angka yang sama';
-            } else {
-                statusEl.textContent = 'Siap scan harga berikutnya...';
-            }
+        const priceEl = document.getElementById('detectedPrice');
+        const now = Date.now();
+        pushVote(price, now);
+        const { price: topPrice, count } = tallyVotes();
+        if (topPrice > 0) {
+            priceEl.textContent = fmtRp(topPrice);
+            priceEl.style.color = count >= VOTES_NEEDED ? '#a7f3d0' : '#fff';
+        }
+        if (topPrice > 0 && count >= VOTES_NEEDED && now - lastAddTime > ADD_COOLDOWN) {
+            votes = [];
+            autoAdd(topPrice);
+        } else if (topPrice > 0) {
+            statusEl.textContent = voteDots(count) + ' ' + count + '/' + VOTES_NEEDED + ' — tetap arahkan ke angka yang sama';
         } else {
             const nums = (raw.match(/\d{2,}/g) || []).slice(0, 3).join(' ');
             statusEl.textContent = nums
@@ -720,7 +783,7 @@
     function autoAdd(price) {
         if (!addPrice(price)) return;
         lastAddTime = Date.now();
-        stableCount = 0;
+        votes = [];
         beep();
         const total = cartTotal();
         const sisaVal = state.budget > 0 ? state.budget - total : null;
@@ -756,7 +819,7 @@
         document.getElementById('detectedPrice').textContent = '—';
         document.getElementById('detectedPrice').style.color = '#fff';
         document.getElementById('detectedStatus').textContent = '↩️ Dibatalkan: ' + fmtRp(last.price);
-        lastReadPrice = 0; stableCount = 0; voteRaw = '';
+        votes = [];
     }
 
     function closeScanScreen() {
@@ -764,6 +827,7 @@
         ocrRunning = false;
         clearInterval(ocrTimer); ocrTimer = null;
         torchOn = false; zoomIdx = 0;
+        votes = []; lastVideoTime = -1;
         if (ocrStream) {
             try { ocrStream.getTracks().forEach(t => t.stop()); } catch (e) {}
             ocrStream = null;
@@ -872,6 +936,14 @@
     setTimeout(() => { ensureOcrWorker().catch(() => {}); }, 2500);
 
     document.getElementById('historyModal').addEventListener('click', e => { if (e.target.id === 'historyModal') closeHistory(); });
+    // Ketuk layar scan untuk memindahkan kotak panduan ke posisi ketukan
+    const scanWrapEl = document.getElementById('scanVideoWrap');
+    scanWrapEl.addEventListener('click', e => {
+        const r = scanWrapEl.getBoundingClientRect();
+        const yFrac = (e.clientY - r.top) / r.height;
+        bandPos = Math.min(1, Math.max(0, (yFrac * 100 - 15) / 70));
+        updateFramePos();
+    });
     window.addEventListener('pagehide', closeScanScreen);
     window.addEventListener('beforeunload', closeScanScreen);
 </script>
