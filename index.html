@@ -302,8 +302,9 @@
         <div class="detected-price" id="detectedPrice">—</div>
         <div class="detected-status" id="detectedStatus">Mencari angka harga...</div>
         <div class="scan-actions-row">
-            <button class="btn btn-manual-price" onclick="manualAddPrice()">⌨️ Ketik Harga</button>
-            <button class="btn btn-finish-scan" onclick="closeScanScreen()">✅ Selesai Scan</button>
+            <button class="btn btn-manual-price" onclick="undoLastAdd()">↩️ Batal</button>
+            <button class="btn btn-manual-price" onclick="manualAddPrice()">⌨️ Ketik</button>
+            <button class="btn btn-finish-scan" onclick="closeScanScreen()">✅ Selesai</button>
         </div>
     </div>
 </div>
@@ -474,7 +475,7 @@
     let tesseractLibPromise = null;
     let lastReadPrice = 0, stableCount = 0, lastAddTime = 0;
     const ADD_COOLDOWN = 2000; // jeda antar tambahan otomatis (ms)
-    let bandPos = 0.5, torchOn = false, zoomIdx = 0, ocrRunning = false, tickParity = 0;
+    let bandPos = 0.5, torchOn = false, zoomIdx = 0, ocrRunning = false, tickParity = 0, voteRaw = '';
     const ZOOM_STEPS = [1, 2, 3];
 
     function isSecure() { return window.isSecureContext; }
@@ -537,7 +538,7 @@
         document.getElementById('scanStatus').textContent = 'Menyiapkan kamera...';
         document.getElementById('detectedPrice').textContent = '—';
         document.getElementById('detectedStatus').textContent = 'Mencari angka harga...';
-        lastReadPrice = 0; stableCount = 0; lastAddTime = 0;
+        lastReadPrice = 0; stableCount = 0; lastAddTime = 0; voteRaw = '';
         try {
             ocrStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
@@ -590,18 +591,46 @@
         return thresh;
     }
 
-    // Ambil frame kamera -> potong area kotak -> perbaiki kontras -> siap untuk OCR
+    // Hitung posisi kotak panduan di koordinat VIDEO (bukan layar).
+    // Video ditampilkan dengan object-fit:cover sehingga terpotong — kalau crop
+    // pakai koordinat video mentah, OCR membaca baris label yang LAIN.
+    function getBoxCropRect(video) {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        const wrap = video.parentElement;
+        const ww = wrap.clientWidth, wh = wrap.clientHeight;
+        const scale = Math.max(ww / vw, wh / vh); // skala object-fit:cover
+        const offX = (vw * scale - ww) / 2;       // bagian video yang terpotong kiri-kanan
+        const offY = (vh * scale - wh) / 2;       // bagian video yang terpotong atas-bawah
+        // Kotak panduan di ruang LAYAR (persen, sama dengan CSS .scan-frame):
+        const topPct = 15 + bandPos * 70;         // pusat kotak (% tinggi layar)
+        const hFrac = 0.26, wFrac = 0.84, lFrac = 0.08;
+        const sx = lFrac * ww;
+        const sy = (topPct / 100) * wh - (hFrac * wh) / 2;
+        const sw = wFrac * ww, sh = hFrac * wh;
+        // Petakan ke ruang VIDEO
+        let vx = (sx + offX) / scale;
+        let vy = (sy + offY) / scale;
+        let vwid = sw / scale, vhei = sh / scale;
+        // Jaminan di dalam batas video
+        vx = Math.max(0, Math.min(vx, vw - 2));
+        vy = Math.max(0, Math.min(vy, vh - 2));
+        vwid = Math.min(vwid, vw - vx);
+        vhei = Math.min(vhei, vh - vy);
+        return { vx, vy, vwid, vhei };
+    }
+
+    // Ambil frame kamera -> potong PERSIS area kotak di layar -> perbaiki kontras
     function preprocessFrame(video, binarize) {
         const vw = video.videoWidth, vh = video.videoHeight;
         if (!vw || !vh) return null;
-        const bandH = Math.round(vh * 0.28);
-        const cropY = Math.round(bandPos * (vh - bandH));
-        const W = 900;
+        const r = getBoxCropRect(video);
+        if (r.vwid < 10 || r.vhei < 6) return null;
+        const W = 1000;
         const c = document.createElement('canvas');
         c.width = W;
-        c.height = Math.max(1, Math.round(bandH / vw * W));
+        c.height = Math.max(1, Math.round(r.vhei / r.vwid * W));
         const ctx = c.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(video, 0, cropY, vw, bandH, 0, 0, W, c.height);
+        ctx.drawImage(video, r.vx, r.vy, r.vwid, r.vhei, 0, 0, W, c.height);
         const img = ctx.getImageData(0, 0, W, c.height);
         const d = img.data;
         const n = W * c.height;
@@ -641,8 +670,17 @@
         }
         ocrBusy = true;
         try {
-            tickParity ^= 1; // selang-seling: grayscale murni & binarisasi Otsu
-            const canvas = preprocessFrame(video, tickParity === 1);
+            // Siklus 4 varian bacaan: mode citra (abu/Otsu) x mode baris (1 baris/blok)
+            // supaya salah baca di satu varian tidak mengulang terus.
+            const combos = [
+                { bin: false, psm: '7' }, // abu-abu, 1 baris
+                { bin: true,  psm: '6' }, // biner Otsu, blok
+                { bin: false, psm: '6' }, // abu-abu, blok
+                { bin: true,  psm: '7' }  // biner Otsu, 1 baris
+            ];
+            tickParity = (tickParity + 1) % combos.length;
+            await ocrWorker.setParameters({ tessedit_pageseg_mode: combos[tickParity].psm });
+            const canvas = preprocessFrame(video, combos[tickParity].bin);
             let price = 0, raw = '';
             if (canvas) {
                 const res = await ocrWorker.recognize(canvas);
@@ -652,26 +690,29 @@
             handleOcrResult(price, raw);
         } catch (e) { /* lanjut frame berikutnya */ }
         finally { ocrBusy = false; }
-        if (ocrRunning) setTimeout(ocrLoop, 50);
+        if (ocrRunning) setTimeout(ocrLoop, 40);
     }
 
     function handleOcrResult(price, raw) {
         const statusEl = document.getElementById('detectedStatus');
         if (price > 0) {
             if (price === lastReadPrice) stableCount++;
-            else { lastReadPrice = price; stableCount = 1; }
-            document.getElementById('detectedPrice').textContent = fmtRp(price);
-            if (stableCount >= 2 && Date.now() - lastAddTime > ADD_COOLDOWN) {
+            else { lastReadPrice = price; stableCount = 1; voteRaw = raw; }
+            const priceEl = document.getElementById('detectedPrice');
+            priceEl.textContent = fmtRp(price);
+            // Warna: putih saat masih mengumpulkan suara, hijau saat terkunci
+            priceEl.style.color = stableCount >= 3 ? '#a7f3d0' : '#fff';
+            if (stableCount >= 3 && Date.now() - lastAddTime > ADD_COOLDOWN) {
                 autoAdd(price);
             } else if (Date.now() - lastAddTime > ADD_COOLDOWN) {
-                statusEl.textContent = 'Terkunci... pastikan angka jelas';
+                statusEl.textContent = 'pembacaan ' + stableCount + '/3 cocok — tetap arahkan ke angka yang sama';
             } else {
                 statusEl.textContent = 'Siap scan harga berikutnya...';
             }
         } else {
             const nums = (raw.match(/\d{2,}/g) || []).slice(0, 3).join(' ');
             statusEl.textContent = nums
-                ? ('Terbaca sebagian: ' + nums + ' — dekatkan kamera / perbesar 🔍 / nyalakan 💡')
+                ? ('Terbaca: "' + nums + '" — dekatkan / perbesar 🔍 / nyalakan 💡')
                 : 'Mencari angka harga... arahkan ke dalam kotak';
         }
     }
@@ -690,7 +731,7 @@
         const flash = document.getElementById('addFlash');
         flash.classList.add('show');
         setTimeout(() => flash.classList.remove('show'), 1300);
-        document.getElementById('detectedStatus').textContent = '✅ Masuk keranjang! Scan harga berikutnya...';
+        document.getElementById('detectedStatus').textContent = '✅ Masuk keranjang! (salah? ketuk ↩️ Batal)';
         if (sisaVal !== null && sisaVal < 0) {
             setTimeout(() => { if (navigator.vibrate) navigator.vibrate([80, 60, 80]); }, 200);
         }
@@ -706,6 +747,16 @@
             document.getElementById('detectedPrice').textContent = fmtRp(price);
             document.getElementById('detectedStatus').textContent = '✅ Masuk keranjang!';
         }
+    }
+
+    function undoLastAdd() {
+        const last = state.cart.pop();
+        if (!last) { toast('Belum ada barang untuk dibatalkan', 'error'); return; }
+        saveState(); renderCart();
+        document.getElementById('detectedPrice').textContent = '—';
+        document.getElementById('detectedPrice').style.color = '#fff';
+        document.getElementById('detectedStatus').textContent = '↩️ Dibatalkan: ' + fmtRp(last.price);
+        lastReadPrice = 0; stableCount = 0; voteRaw = '';
     }
 
     function closeScanScreen() {
