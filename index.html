@@ -139,6 +139,16 @@
         color: #fff; font-size: 11px; background: rgba(15,23,42,.65);
         padding: 4px 10px; border-radius: 99px; pointer-events: none; white-space: nowrap;
     }
+    .scan-ctrl {
+        position: absolute; bottom: 12px; left: 0; right: 0;
+        display: flex; justify-content: center; gap: 10px;
+    }
+    .scan-ctrl button {
+        width: 44px; height: 44px; border-radius: 50%; border: none;
+        background: rgba(15,23,42,.7); color: #fff; font-size: 17px;
+        cursor: pointer; font-family: inherit; backdrop-filter: blur(4px);
+    }
+    .scan-ctrl button:active { transform: scale(.92); }
     .scan-result {
         min-height: 92px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
         background: rgba(15,23,42,.95); color: #fff;
@@ -275,8 +285,14 @@
     </div>
     <div class="scan-video-wrap">
         <video id="scanVideo" autoplay playsinline muted></video>
-        <div class="scan-frame"></div>
-        <div class="scan-frame-label">arahkan angka harga ke dalam kotak</div>
+        <div class="scan-frame" id="scanFrame"></div>
+        <div class="scan-frame-label" id="scanFrameLabel">arahkan angka harga ke dalam kotak</div>
+        <div class="scan-ctrl">
+            <button onclick="moveBand(-1)" title="Naikkan kotak">▲</button>
+            <button onclick="moveBand(1)" title="Turunkan kotak">▼</button>
+            <button onclick="toggleTorch()" title="Lampu flash">💡</button>
+            <button onclick="cycleZoom()" title="Perbesar" id="btnZoom">🔍</button>
+        </div>
         <div class="add-flash" id="addFlash">
             <div class="af-price" id="afPrice">Rp 0</div>
             <div class="af-sisa" id="afSisa"></div>
@@ -457,7 +473,9 @@
     let ocrStream = null, ocrWorker = null, ocrTimer = null, ocrBusy = false;
     let tesseractLibPromise = null;
     let lastReadPrice = 0, stableCount = 0, lastAddTime = 0;
-    const ADD_COOLDOWN = 2600; // jeda antar tambahan otomatis (ms)
+    const ADD_COOLDOWN = 2000; // jeda antar tambahan otomatis (ms)
+    let bandPos = 0.5, torchOn = false, zoomIdx = 0, ocrRunning = false, tickParity = 0;
+    const ZOOM_STEPS = [1, 2, 3];
 
     function isSecure() { return window.isSecureContext; }
 
@@ -490,17 +508,21 @@
         ocrWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
         await ocrWorker.setParameters({
             tessedit_char_whitelist: '0123456789.,',
-            tessedit_pageseg_mode: '6'
+            tessedit_pageseg_mode: '6',
+            user_defined_dpi: '300'
         });
         return ocrWorker;
     }
 
     function parsePriceText(text) {
-        const t = String(text || '').toUpperCase().replace(/O/g, '0');
-        const matches = t.match(/\d{1,3}(?:[.,]\d{3})+|\d{3,7}/g) || [];
+        // Perbaiki karakter yang sering salah baca OCR menjadi digit
+        const t = String(text || '').toUpperCase()
+            .replace(/[OQ]/g, '0').replace(/[IL|]/g, '1').replace(/Z/g, '2')
+            .replace(/S/g, '5').replace(/B/g, '8').replace(/G/g, '6');
+        const matches = t.match(/\d{1,3}(?:[.,\s]\d{3})+|\d{3,7}/g) || [];
         let best = 0;
         matches.forEach(m => {
-            const v = Number(m.replace(/[.,]/g, '')) || 0;
+            const v = Number(m.replace(/[^\d]/g, '')) || 0;
             if (v >= 100 && v <= 99999999 && v > best) best = v;
         });
         return best;
@@ -518,7 +540,7 @@
         lastReadPrice = 0; stableCount = 0; lastAddTime = 0;
         try {
             ocrStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
             });
             const video = document.getElementById('scanVideo');
             video.srcObject = ocrStream;
@@ -544,44 +566,114 @@
             return;
         }
         clearInterval(ocrTimer);
-        ocrTimer = setInterval(ocrTick, 850);
-        ocrTick();
+        ocrRunning = true;
+        updateFramePos();
+        ocrLoop();
     }
 
-    async function ocrTick() {
-        if (ocrBusy || !ocrWorker) return;
+    function otsuThreshold(gray, n) {
+        const hist = new Array(256).fill(0);
+        for (let i = 0; i < n; i++) hist[gray[i]]++;
+        let sum = 0;
+        for (let t = 0; t < 256; t++) sum += t * hist[t];
+        let sumB = 0, wB = 0, maxVar = 0, thresh = 127;
+        for (let t = 0; t < 256; t++) {
+            wB += hist[t];
+            if (wB === 0) continue;
+            const wF = n - wB;
+            if (wF === 0) break;
+            sumB += t * hist[t];
+            const mB = sumB / wB, mF = (sum - sumB) / wF;
+            const v = wB * wF * (mB - mF) * (mB - mF);
+            if (v > maxVar) { maxVar = v; thresh = t; }
+        }
+        return thresh;
+    }
+
+    // Ambil frame kamera -> potong area kotak -> perbaiki kontras -> siap untuk OCR
+    function preprocessFrame(video, binarize) {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        if (!vw || !vh) return null;
+        const bandH = Math.round(vh * 0.28);
+        const cropY = Math.round(bandPos * (vh - bandH));
+        const W = 900;
+        const c = document.createElement('canvas');
+        c.width = W;
+        c.height = Math.max(1, Math.round(bandH / vw * W));
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(video, 0, cropY, vw, bandH, 0, 0, W, c.height);
+        const img = ctx.getImageData(0, 0, W, c.height);
+        const d = img.data;
+        const n = W * c.height;
+        const gray = new Uint8ClampedArray(n);
+        let mn = 255, mx = 0;
+        for (let i = 0, p = 0; i < n; i++, p += 4) {
+            const g = (d[p] * 0.299 + d[p + 1] * 0.587 + d[p + 2] * 0.114) | 0;
+            gray[i] = g;
+            if (g < mn) mn = g;
+            if (g > mx) mx = g;
+        }
+        // Regang kontras supaya angka lebih menonjol
+        const range = (mx - mn) || 1;
+        for (let i = 0; i < n; i++) gray[i] = ((gray[i] - mn) * 255 / range) | 0;
+        if (binarize) {
+            const th = otsuThreshold(gray, n);
+            for (let i = 0, p = 0; i < n; i++, p += 4) {
+                const v = gray[i] > th ? 255 : 0;
+                d[p] = d[p + 1] = d[p + 2] = v; d[p + 3] = 255;
+            }
+        } else {
+            for (let i = 0, p = 0; i < n; i++, p += 4) {
+                d[p] = d[p + 1] = d[p + 2] = gray[i]; d[p + 3] = 255;
+            }
+        }
+        ctx.putImageData(img, 0, 0);
+        return c;
+    }
+
+    // Loop OCR berkelanjutan: pembacaan berikutnya mulai segera setelah selesai (jauh lebih cepat dari interval tetap)
+    async function ocrLoop() {
+        if (!ocrRunning || !ocrWorker) return;
         const video = document.getElementById('scanVideo');
-        if (!video || video.readyState < 2 || !video.videoWidth) return;
+        if (!video || video.readyState < 2 || !video.videoWidth) {
+            setTimeout(ocrLoop, 200);
+            return;
+        }
         ocrBusy = true;
         try {
-            // Crop area tengah (kotak panduan) supaya fokus ke angka harga
-            const c = document.createElement('canvas');
-            const W = 720;
-            const vw = video.videoWidth, vh = video.videoHeight;
-            const cropH = Math.round(vh * 0.32), cropY = Math.round((vh - cropH) / 2);
-            c.width = W;
-            c.height = Math.max(1, Math.round(cropH / vw * W));
-            c.getContext('2d').drawImage(video, 0, cropY, vw, cropH, 0, 0, W, c.height);
-            const res = await ocrWorker.recognize(c);
-            const price = parsePriceText(res && res.data && res.data.text);
-            const statusEl = document.getElementById('detectedStatus');
-            if (price > 0) {
-                // Butuh 2x pembacaan sama berturut-turut supaya stabil
-                if (price === lastReadPrice) stableCount++;
-                else { lastReadPrice = price; stableCount = 1; }
-                document.getElementById('detectedPrice').textContent = fmtRp(price);
-                if (stableCount >= 2 && Date.now() - lastAddTime > ADD_COOLDOWN) {
-                    autoAdd(price);
-                } else if (Date.now() - lastAddTime > ADD_COOLDOWN) {
-                    statusEl.textContent = 'Terkunci... pastikan angka jelas';
-                } else {
-                    statusEl.textContent = 'Siap scan harga berikutnya...';
-                }
-            } else {
-                statusEl.textContent = 'Mencari angka harga... arahkan ke label';
+            tickParity ^= 1; // selang-seling: grayscale murni & binarisasi Otsu
+            const canvas = preprocessFrame(video, tickParity === 1);
+            let price = 0, raw = '';
+            if (canvas) {
+                const res = await ocrWorker.recognize(canvas);
+                raw = String((res && res.data && res.data.text) || '').trim();
+                price = parsePriceText(raw);
             }
-        } catch (e) { /* frame berikutnya */ }
+            handleOcrResult(price, raw);
+        } catch (e) { /* lanjut frame berikutnya */ }
         finally { ocrBusy = false; }
+        if (ocrRunning) setTimeout(ocrLoop, 50);
+    }
+
+    function handleOcrResult(price, raw) {
+        const statusEl = document.getElementById('detectedStatus');
+        if (price > 0) {
+            if (price === lastReadPrice) stableCount++;
+            else { lastReadPrice = price; stableCount = 1; }
+            document.getElementById('detectedPrice').textContent = fmtRp(price);
+            if (stableCount >= 2 && Date.now() - lastAddTime > ADD_COOLDOWN) {
+                autoAdd(price);
+            } else if (Date.now() - lastAddTime > ADD_COOLDOWN) {
+                statusEl.textContent = 'Terkunci... pastikan angka jelas';
+            } else {
+                statusEl.textContent = 'Siap scan harga berikutnya...';
+            }
+        } else {
+            const nums = (raw.match(/\d{2,}/g) || []).slice(0, 3).join(' ');
+            statusEl.textContent = nums
+                ? ('Terbaca sebagian: ' + nums + ' — dekatkan kamera / perbesar 🔍 / nyalakan 💡')
+                : 'Mencari angka harga... arahkan ke dalam kotak';
+        }
     }
 
     function autoAdd(price) {
@@ -618,13 +710,52 @@
 
     function closeScanScreen() {
         document.getElementById('scanScreen').classList.remove('show');
+        ocrRunning = false;
         clearInterval(ocrTimer); ocrTimer = null;
+        torchOn = false; zoomIdx = 0;
         if (ocrStream) {
             try { ocrStream.getTracks().forEach(t => t.stop()); } catch (e) {}
             ocrStream = null;
         }
         const video = document.getElementById('scanVideo');
         if (video) { try { video.srcObject = null; } catch (e) {} }
+    }
+
+    // ===== KONTROL KAMERA: geser kotak, flash, zoom =====
+    function updateFramePos() {
+        const topPct = 15 + bandPos * 70;
+        const f = document.getElementById('scanFrame');
+        const l = document.getElementById('scanFrameLabel');
+        if (f) f.style.top = topPct + '%';
+        if (l) l.style.top = 'calc(' + topPct + '% + 14%)';
+    }
+    function moveBand(dir) {
+        bandPos = Math.min(1, Math.max(0, bandPos + dir * 0.14));
+        updateFramePos();
+    }
+    async function toggleTorch() {
+        try {
+            const track = ocrStream && ocrStream.getVideoTracks()[0];
+            if (!track) return;
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (!caps || !caps.torch) { toast('Flash tidak didukung kamera ini', 'error'); return; }
+            torchOn = !torchOn;
+            await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+            toast(torchOn ? '💡 Flash nyala' : '💡 Flash mati', 'info');
+        } catch (e) { toast('Flash gagal diatur', 'error'); }
+    }
+    async function cycleZoom() {
+        try {
+            const track = ocrStream && ocrStream.getVideoTracks()[0];
+            if (!track) return;
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (!caps || !caps.zoom) { toast('Zoom tidak didukung — dekatkan kamera ke label', 'info'); return; }
+            const min = caps.zoom.min || 1, max = caps.zoom.max || 1;
+            zoomIdx = (zoomIdx + 1) % ZOOM_STEPS.length;
+            const z = Math.min(max, Math.max(min, ZOOM_STEPS[zoomIdx]));
+            await track.applyConstraints({ advanced: [{ zoom: z }] });
+            toast('🔍 Zoom: ' + z + 'x', 'info');
+        } catch (e) { toast('Zoom gagal diatur', 'error'); }
     }
 
     // ================= SELESAI & RIWAYAT =================
@@ -684,6 +815,10 @@
     loadState();
     if (state.budget) document.getElementById('budgetInput').value = state.budget.toLocaleString('id-ID');
     renderCart();
+    updateFramePos();
+
+    // Pra-muat mesin OCR di belakang layar supaya scan pertama tidak menunggu lama
+    setTimeout(() => { ensureOcrWorker().catch(() => {}); }, 2500);
 
     document.getElementById('historyModal').addEventListener('click', e => { if (e.target.id === 'historyModal') closeHistory(); });
     window.addEventListener('pagehide', closeScanScreen);
