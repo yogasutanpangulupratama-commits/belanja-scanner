@@ -97,6 +97,23 @@
     }
     .manual-barcode input:focus { border-color: #059669; }
 
+    /* ===== SCAN MODE TABS & OCR ===== */
+    .scan-mode-tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+    .mode-tab {
+        flex: 1; border: 1.5px solid #e2e8f0; background: #fff; color: #475569;
+        font-family: inherit; font-weight: 700; font-size: 12.5px; padding: 10px;
+        border-radius: 10px; cursor: pointer;
+    }
+    .mode-tab.active { background: #ecfdf5; color: #059669; border-color: #059669; }
+    #ocrArea { margin-top: 2px; }
+    #ocrVideo { width: 100%; border-radius: 12px; background: #000; display: block; }
+    .ocr-detected {
+        display: flex; justify-content: space-between; align-items: center;
+        background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 12px;
+        padding: 10px 14px; margin-top: 8px; font-size: 12px; color: #065f46; font-weight: 600;
+    }
+    .ocr-detected b { font-size: 20px; color: #059669; }
+
     /* ===== CART ===== */
     .cart-empty { text-align: center; color: #94a3b8; font-size: 12.5px; padding: 18px 0; }
     .cart-empty span { font-size: 30px; display: block; margin-bottom: 6px; }
@@ -217,15 +234,31 @@
         <div class="card-title">📷 Scan Barcode
             <span style="font-size:10.5px;font-weight:500;color:#94a3b8" id="camStatus"></span>
         </div>
+        <div class="scan-mode-tabs">
+            <button class="mode-tab active" id="tabBarcode" onclick="switchScanMode('barcode')">🏷️ Barcode</button>
+            <button class="mode-tab" id="tabNominal" onclick="switchScanMode('nominal')">💰 Nominal / Harga</button>
+        </div>
         <div id="reader"></div>
+        <div id="ocrArea" style="display:none">
+            <video id="ocrVideo" autoplay playsinline muted></video>
+            <div class="ocr-detected">
+                <span>Harga terdeteksi:</span>
+                <b id="ocrPrice">—</b>
+            </div>
+            <div class="scan-actions">
+                <button class="btn btn-primary" id="btnUsePrice" onclick="useDetectedPrice()" disabled>➕ Pakai Harga Ini</button>
+                <button class="btn btn-danger" style="flex:0 0 110px" onclick="stopNominalScan()">⏹ Stop</button>
+            </div>
+            <div class="scan-hint">Arahkan kamera ke tulisan harga pada label/etiket sampai angka terbaca, lalu ketuk "Pakai Harga Ini". Cek dulu angkanya benar sebelum dipakai!</div>
+        </div>
         <div class="scan-actions" id="scanButtons">
             <button class="btn btn-primary" id="btnStartScan" onclick="startScan()">📷 MULAI SCAN</button>
         </div>
-        <div class="manual-barcode">
+        <div class="manual-barcode" id="manualBarcodeRow">
             <input type="text" id="manualCode" placeholder="Ketik barcode manual (misal: 8991002101234)" inputmode="numeric">
             <button class="btn btn-secondary" style="flex:0 0 auto;padding:10px 14px" onclick="addManualCode()">Cari</button>
         </div>
-        <div class="scan-hint">Arahkan kamera ke barcode produk. Scan pertama akan diminta nama &amp; harga —<br>scan berikutnya langsung dikenali otomatis! 🧠</div>
+        <div class="scan-hint" id="barcodeHints">Arahkan kamera ke barcode produk. Scan pertama akan diminta nama &amp; harga —<br>scan berikutnya langsung dikenali otomatis! 🧠</div>
         <div class="scan-hint"><a href="#" onclick="runCameraDiagnosis(); return false;" style="color:#059669;font-weight:700;">🔧 Kamera tidak muncul? Klik di sini untuk cek otomatis</a></div>
         <div id="diagResult" style="display:none;text-align:left;font-size:11.5px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-top:8px;line-height:1.7"></div>
     </div>
@@ -471,21 +504,25 @@
     let pmContext = { fromBarcode: null };
     let resumeScanAfterClose = false; // scanner aktif sebelum modal dibuka → lanjutkan setelah ditutup
 
-    function openProductModal(barcode) {
+    function openProductModal(barcode, presetPrice) {
         pmContext.fromBarcode = barcode || null;
-        document.getElementById('pmTitle').textContent = barcode ? '🏷️ Produk Baru Terdeteksi' : '➕ Tambah Produk Manual';
+        document.getElementById('pmTitle').textContent = barcode ? '🏷️ Produk Baru Terdeteksi' : (presetPrice ? '💰 Produk dengan Harga Scan' : '➕ Tambah Produk Manual');
         document.getElementById('pmSub').textContent = barcode
             ? 'Barcode ' + barcode + ' belum dikenal. Isi nama & harganya — lain kali scan langsung terisi!'
-            : 'Isi nama & harga. Jika diisi barcode-nya, akan diingat untuk scan berikutnya.';
+            : (presetPrice ? 'Harga hasil scan sudah terisi. Pastikan angkanya benar & tulis nama produknya.'
+            : 'Isi nama & harga. Jika diisi barcode-nya, akan diingat untuk scan berikutnya.');
         document.getElementById('pmCode').value = barcode || '';
         document.getElementById('pmCode').readOnly = !!barcode;
         document.getElementById('pmName').value = '';
-        document.getElementById('pmPrice').value = '';
+        document.getElementById('pmPrice').value = presetPrice ? (Number(presetPrice) || 0).toLocaleString('id-ID') : '';
         document.getElementById('pmQty').value = 1;
         // Jika kamera sedang aktif, hentikan dulu & tandai untuk dilanjutkan setelah modal ditutup
         if (scanActive) {
             resumeScanAfterClose = true;
             pauseScanForModal();
+        } else if (nominalActive) {
+            resumeScanAfterClose = true;
+            stopNominalScan(false);
         }
         document.getElementById('productModal').classList.add('show');
         setTimeout(() => document.getElementById('pmName').focus(), 150);
@@ -700,7 +737,10 @@
     function maybeResumeScan() {
         if (resumeScanAfterClose && !scanStoppedByUser) {
             resumeScanAfterClose = false;
-            setTimeout(() => { startScan(); }, 300);
+            setTimeout(() => {
+                if (activeScanMode === 'nominal') startNominalScan();
+                else startScan();
+            }, 300);
         } else {
             resumeScanAfterClose = false;
         }
@@ -739,6 +779,154 @@
         document.getElementById('manualCode').value = '';
         addByBarcode(code);
     }
+
+    // ================= SCAN NOMINAL / OCR HARGA =================
+    let ocrStream = null, ocrWorker = null, ocrTimer = null, ocrBusy = false;
+    let nominalActive = false, detectedPrice = 0, tesseractLibPromise = null;
+    let activeScanMode = 'barcode';
+
+    function loadTesseractLib() {
+        if (window.Tesseract) return Promise.resolve(true);
+        if (tesseractLibPromise) return tesseractLibPromise;
+        const urls = [
+            'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+            'https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js'
+        ];
+        tesseractLibPromise = new Promise(resolve => {
+            let i = 0;
+            const tryNext = () => {
+                if (i >= urls.length) { resolve(false); return; }
+                const s = document.createElement('script');
+                s.src = urls[i++];
+                s.onload = () => resolve(true);
+                s.onerror = () => { s.remove(); tryNext(); };
+                document.head.appendChild(s);
+            };
+            tryNext();
+        });
+        return tesseractLibPromise;
+    }
+
+    async function ensureOcrWorker() {
+        if (ocrWorker) return ocrWorker;
+        const ok = await loadTesseractLib();
+        if (!ok) throw new Error('Mesin pembaca angka gagal dimuat — cek koneksi internet.');
+        ocrWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
+        await ocrWorker.setParameters({
+            tessedit_char_whitelist: '0123456789.,',
+            tessedit_pageseg_mode: '6'
+        });
+        return ocrWorker;
+    }
+
+    function parsePriceText(text) {
+        const t = String(text || '').toUpperCase().replace(/O/g, '0');
+        const matches = t.match(/\d{1,3}(?:[.,]\d{3})+|\d{3,7}/g) || [];
+        let best = 0;
+        matches.forEach(m => {
+            const v = Number(m.replace(/[.,]/g, '')) || 0;
+            if (v >= 100 && v <= 99999999 && v > best) best = v;
+        });
+        return best;
+    }
+
+    function switchScanMode(mode) {
+        activeScanMode = mode;
+        const isBarcode = mode === 'barcode';
+        document.getElementById('tabBarcode').classList.toggle('active', isBarcode);
+        document.getElementById('tabNominal').classList.toggle('active', !isBarcode);
+        document.getElementById('scanButtons').style.display = isBarcode ? 'flex' : 'none';
+        document.getElementById('manualBarcodeRow').style.display = isBarcode ? 'flex' : 'none';
+        document.getElementById('barcodeHints').style.display = isBarcode ? 'block' : 'none';
+        if (isBarcode) {
+            stopNominalScan();
+        } else {
+            stopScan();
+            startNominalScan();
+        }
+    }
+
+    async function startNominalScan() {
+        scanStoppedByUser = false;
+        resumeScanAfterClose = false;
+        if (!isSecure()) {
+            runCameraDiagnosis();
+            toast('Kamera butuh HTTPS. Buka lewat link yang diawali https://', 'error');
+            return;
+        }
+        const area = document.getElementById('ocrArea');
+        const video = document.getElementById('ocrVideo');
+        area.style.display = 'block';
+        document.getElementById('ocrPrice').textContent = '—';
+        document.getElementById('btnUsePrice').disabled = true;
+        detectedPrice = 0;
+        try {
+            ocrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+            video.srcObject = ocrStream;
+            await video.play();
+            nominalActive = true;
+        } catch (e) {
+            area.style.display = 'none';
+            runCameraDiagnosis();
+            toast('Kamera gagal dibuka. Hasil diagnosa ditampilkan di bawah.', 'error');
+            return;
+        }
+        if (!ocrWorker) toast('📥 Memuat mesin pembaca angka (hanya sekali, ±2 MB)...', 'info');
+        try {
+            await ensureOcrWorker();
+        } catch (e) {
+            toast(e.message || 'Mesin OCR gagal dimuat', 'error');
+            stopNominalScan();
+            return;
+        }
+        if (!nominalActive) return; // kamera sudah distop semasa loading
+        clearInterval(ocrTimer);
+        ocrTimer = setInterval(ocrTick, 900);
+        ocrTick();
+    }
+
+    async function ocrTick() {
+        if (ocrBusy || !ocrWorker || !nominalActive) return;
+        const video = document.getElementById('ocrVideo');
+        if (!video || video.readyState < 2 || !video.videoWidth) return;
+        ocrBusy = true;
+        try {
+            const c = document.createElement('canvas');
+            const w = 640;
+            const h = Math.max(1, Math.round(video.videoHeight / video.videoWidth * w));
+            c.width = w; c.height = h;
+            c.getContext('2d').drawImage(video, 0, 0, w, h);
+            const res = await ocrWorker.recognize(c);
+            const price = parsePriceText(res && res.data && res.data.text);
+            if (price > 0) {
+                detectedPrice = price;
+                document.getElementById('ocrPrice').textContent = fmtRp(price);
+                document.getElementById('btnUsePrice').disabled = false;
+            }
+        } catch (e) { /* lanjut frame berikutnya */ }
+        finally { ocrBusy = false; }
+    }
+
+    function stopNominalScan(byUser = true) {
+        if (byUser) { scanStoppedByUser = true; resumeScanAfterClose = false; }
+        nominalActive = false;
+        clearInterval(ocrTimer); ocrTimer = null;
+        if (ocrStream) {
+            try { ocrStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+            ocrStream = null;
+        }
+        const video = document.getElementById('ocrVideo');
+        if (video) { try { video.srcObject = null; } catch (e) {} }
+        const area = document.getElementById('ocrArea');
+        if (area) area.style.display = 'none';
+    }
+
+    function useDetectedPrice() {
+        if (!detectedPrice) return;
+        openProductModal(null, detectedPrice);
+    }
+
+    function stopAllScanning() { stopScan(); stopNominalScan(); }
 
     // ================= SELESAI & RIWAYAT =================
     function finishTrip() {
@@ -805,8 +993,8 @@
     document.getElementById('manualCode').addEventListener('keydown', e => { if (e.key === 'Enter') addManualCode(); });
     document.getElementById('productModal').addEventListener('click', e => { if (e.target.id === 'productModal') closeProductModal(); });
     document.getElementById('historyModal').addEventListener('click', e => { if (e.target.id === 'historyModal') closeHistory(); });
-    window.addEventListener('pagehide', stopScan);
-    window.addEventListener('beforeunload', stopScan);
+    window.addEventListener('pagehide', stopAllScanning);
+    window.addEventListener('beforeunload', stopAllScanning);
 </script>
 </body>
 </html>
