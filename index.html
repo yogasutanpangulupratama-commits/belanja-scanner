@@ -149,6 +149,20 @@
         cursor: pointer; font-family: inherit; backdrop-filter: blur(4px);
     }
     .scan-ctrl button:active { transform: scale(.92); }
+    .cam-error {
+        position: absolute; inset: 0; z-index: 8;
+        background: rgba(15,23,42,.96); color: #fff;
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        gap: 10px; padding: 20px; text-align: center;
+    }
+    .cam-error .ce-icon { font-size: 38px; }
+    .cam-error .ce-title { font-size: 15px; font-weight: 800; }
+    .cam-error .ce-msg { font-size: 12px; line-height: 1.7; opacity: .88; white-space: pre-line; }
+    .webview-banner {
+        background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+        border-radius: 12px; padding: 10px 12px; font-size: 11.5px; font-weight: 600;
+        margin-bottom: 12px; line-height: 1.6;
+    }
     .scan-result {
         min-height: 92px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
         background: rgba(15,23,42,.95); color: #fff;
@@ -232,6 +246,10 @@
         <button class="btn-ghost" onclick="openHistory()">🗂️ Riwayat</button>
     </header>
 
+    <div class="webview-banner" id="webviewBanner" style="display:none">
+        ⚠️ Kamu membuka ini dari browser dalam aplikasi (WA/IG/FB). Kamera sering diblokir di sana. <b>Salin link</b> lalu buka di <b>Chrome (Android) / Safari (iPhone)</b>.
+    </div>
+
     <!-- BUDGET -->
     <div class="card">
         <div class="card-title">🎯 Budget Belanja</div>
@@ -295,6 +313,15 @@
         <div class="add-flash" id="addFlash">
             <div class="af-price" id="afPrice">Rp 0</div>
             <div class="af-sisa" id="afSisa"></div>
+        </div>
+        <div class="cam-error" id="camError">
+            <div class="ce-icon">📷</div>
+            <div class="ce-title">Kamera Bermasalah</div>
+            <div class="ce-msg" id="ceMsg"></div>
+            <div style="display:flex;gap:8px;width:100%;max-width:320px">
+                <button class="btn btn-finish-scan" id="ceRetry" onclick="retryCamera()">🔄 Coba Lagi</button>
+                <button class="btn btn-manual-price" onclick="manualAddPrice()">⌨️ Ketik</button>
+            </div>
         </div>
     </div>
     <div class="scan-result">
@@ -533,6 +560,98 @@
         return best;
     }
 
+    function isWebview() {
+        const ua = navigator.userAgent || '';
+        return /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|WhatsApp|\bwv\b/.test(ua);
+    }
+
+    function buildConstraints(level) {
+        if (level === 0) return { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } };
+        if (level === 1) return { video: { facingMode: 'environment' } };
+        return { video: true };
+    }
+
+    function showCamError(msg, withRetry) {
+        const p = document.getElementById('camError');
+        if (!p) return;
+        if (!msg) { p.style.display = 'none'; return; }
+        document.getElementById('ceMsg').textContent = msg;
+        document.getElementById('ceRetry').style.display = withRetry ? 'block' : 'none';
+        p.style.display = 'flex';
+    }
+
+    function attachTrackHandlers() {
+        const track = ocrStream && ocrStream.getVideoTracks()[0];
+        if (!track) return;
+        track.onended = () => {
+            const scr = document.getElementById('scanScreen');
+            if (scr && scr.classList.contains('show')) {
+                ocrRunning = false;
+                showCamError('Kamera terputus tiba-tiba. Biasanya karena aplikasi lain mengambil alih kamera.', true);
+            }
+        };
+    }
+
+    function isVideoBlack(video) {
+        try {
+            const c = document.createElement('canvas'); c.width = 64; c.height = 48;
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(video, 0, 0, 64, 48);
+            const d = ctx.getImageData(0, 0, 64, 48).data;
+            let mn = 255, mx = 0;
+            for (let i = 0; i < d.length; i += 16) { const v = d[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+            return (mx - mn) < 5;
+        } catch (e) { return false; }
+    }
+
+    let watchdogTimer = null, streamLevel = 0;
+    function stopStreamWatchdog() { clearInterval(watchdogTimer); watchdogTimer = null; }
+
+    // Watchdog: pantau kamera tiap 0,65 detik. Layar hitam / frame macet / video pause
+    // -> coba play ulang -> kalau tetap, mulai ulang stream dengan constraint lebih sederhana.
+    function setupStreamWatchdog(video) {
+        stopStreamWatchdog();
+        let checks = 0, lastT = -1, unhealthy = 0;
+        watchdogTimer = setInterval(async () => {
+            if (!ocrStream) { stopStreamWatchdog(); return; }
+            checks++;
+            if (video.paused) { try { await video.play(); } catch (e) {} }
+            const adv = video.currentTime !== lastT; lastT = video.currentTime;
+            const ok = video.videoWidth > 0 && adv && !isVideoBlack(video);
+            if (ok) {
+                unhealthy = 0; showCamError(null);
+                if (checks > 25) stopStreamWatchdog(); // cukup stabil, matikan pantauan
+                return;
+            }
+            unhealthy++;
+            if (unhealthy >= 6) { stopStreamWatchdog(); await recoverStream(video); }
+        }, 650);
+    }
+
+    async function recoverStream(video) {
+        showCamError('Kamera tidak aktif (layar hitam). Mencoba pemulihan otomatis...', false);
+        try { if (ocrStream) ocrStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+        ocrStream = null;
+        for (let lvl = streamLevel + 1; lvl <= 2; lvl++) {
+            try {
+                ocrStream = await navigator.mediaDevices.getUserMedia(buildConstraints(lvl));
+                streamLevel = lvl;
+                video.srcObject = ocrStream;
+                await video.play();
+                attachTrackHandlers();
+                showCamError(null);
+                setupStreamWatchdog(video);
+                return;
+            } catch (e) { /* coba level berikutnya */ }
+        }
+        showCamError('Kamera gagal dibuka. Penyebab paling umum:\n1. Browser dalam aplikasi (WA/IG/FB) → salin link, buka di Chrome/Safari\n2. Izin kamera ditolak → ikon 🔒 di address bar → Kamera → Izinkan\n3. Kamera dipakai aplikasi lain → tutup aplikasinya', true);
+    }
+
+    function retryCamera() {
+        closeScanScreen();
+        setTimeout(openScanScreen, 250);
+    }
+
     async function openScanScreen() {
         if (!isSecure()) {
             toast('Kamera butuh HTTPS. Buka lewat link yang diawali https://', 'error');
@@ -544,38 +663,36 @@
         document.getElementById('detectedPrice').style.color = '#fff';
         document.getElementById('detectedStatus').textContent = 'Mencari angka harga...';
         votes = []; lastVideoTime = -1; tickParity = 0; lastAddTime = 0;
-        try {
-            ocrStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
-            });
-            const video = document.getElementById('scanVideo');
-            video.srcObject = ocrStream;
-            await video.play();
-            enableContinuousFocus();
-            document.getElementById('scanStatus').textContent = 'Kamera aktif ✅';
-        } catch (e) {
-            closeScanScreen();
-            const n = (e && e.name) || '';
-            if (n === 'NotAllowedError' || n === 'SecurityError') {
-                toast('Izin kamera ditolak. Buka ikon 🔒 di address bar → Kamera → Izinkan, lalu muat ulang.', 'error');
-            } else if (n === 'NotReadableError') {
-                toast('Kamera dipakai aplikasi lain. Tutup dulu aplikasi kamera/video lain.', 'error');
-            } else {
-                toast('Kamera gagal dibuka (' + n + ').', 'error');
-            }
-            return;
+        streamLevel = 0;
+        showCamError(null);
+        const video = document.getElementById('scanVideo');
+        if (isWebview()) {
+            showCamError('⚠️ Kamu membuka dari browser dalam aplikasi (WA/IG/FB) — kamera sering diblokir/di-blank di sana.\n\nSolusi: salin link ini, lalu buka di Chrome (Android) atau Safari (iPhone).', true);
         }
-        try {
-            await ensureOcrWorker();
-        } catch (e) {
-            toast(e.message || 'Mesin OCR gagal dimuat', 'error');
-            closeScanScreen();
-            return;
+        for (let lvl = 0; lvl <= 2; lvl++) {
+            try {
+                ocrStream = await navigator.mediaDevices.getUserMedia(buildConstraints(lvl));
+                streamLevel = lvl;
+                video.srcObject = ocrStream;
+                await video.play();
+                attachTrackHandlers();
+                enableContinuousFocus();
+                document.getElementById('scanStatus').textContent = 'Kamera aktif ✅';
+                setupStreamWatchdog(video);
+                try {
+                    await ensureOcrWorker();
+                } catch (e) {
+                    showCamError('Mesin pembaca angka gagal dimuat. Cek koneksi internet, lalu ketuk Coba Lagi.', true);
+                    return;
+                }
+                clearInterval(ocrTimer);
+                ocrRunning = true;
+                updateFramePos();
+                ocrLoop();
+                return;
+            } catch (e) { /* lanjut level berikutnya */ }
         }
-        clearInterval(ocrTimer);
-        ocrRunning = true;
-        updateFramePos();
-        ocrLoop();
+        showCamError('Kamera gagal dibuka. Penyebab paling umum:\n1. Izin kamera ditolak → ikon 🔒 di address bar → Kamera → Izinkan, lalu ketuk Coba Lagi\n2. Kamera dipakai aplikasi lain → tutup dulu aplikasinya\n3. Browser dalam aplikasi (WA/IG) → salin link, buka di Chrome/Safari', true);
     }
 
     function otsuThreshold(gray, n) {
@@ -826,7 +943,9 @@
         document.getElementById('scanScreen').classList.remove('show');
         ocrRunning = false;
         clearInterval(ocrTimer); ocrTimer = null;
-        torchOn = false; zoomIdx = 0;
+        stopStreamWatchdog();
+        showCamError(null);
+        torchOn = false; zoomIdx = 0; streamLevel = 0;
         votes = []; lastVideoTime = -1;
         if (ocrStream) {
             try { ocrStream.getTracks().forEach(t => t.stop()); } catch (e) {}
@@ -944,6 +1063,11 @@
         bandPos = Math.min(1, Math.max(0, (yFrac * 100 - 15) / 70));
         updateFramePos();
     });
+    // Tombol kontrol (▲▼💡🔍) tidak boleh memicu pergeseran kotak
+    const scanCtrlEl = document.querySelector('.scan-ctrl');
+    if (scanCtrlEl) scanCtrlEl.addEventListener('click', e => e.stopPropagation());
+    // Peringatan dini bila dibuka dari webview WA/IG/FB
+    if (isWebview()) { const wb = document.getElementById('webviewBanner'); if (wb) wb.style.display = 'block'; }
     window.addEventListener('pagehide', closeScanScreen);
     window.addEventListener('beforeunload', closeScanScreen);
 </script>
