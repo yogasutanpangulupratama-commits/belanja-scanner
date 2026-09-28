@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#059669">
+<title>Scan Budget — Scanner Belanja Supermarket</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: #f0fdf4;
+        color: #1e293b;
+        min-height: 100vh;
+        padding-bottom: 90px;
+    }
+    .app { max-width: 480px; margin: 0 auto; padding: 12px; }
+
+    /* ===== HEADER ===== */
+    header {
+        background: linear-gradient(135deg, #059669, #047857);
+        color: #fff;
+        border-radius: 16px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 4px 14px rgba(5,150,105,.3);
+        margin-bottom: 12px;
+    }
+    header h1 { font-size: 17px; font-weight: 800; letter-spacing: .3px; }
+    header p  { font-size: 10.5px; opacity: .85; }
+    .btn-ghost {
+        background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.35);
+        border-radius: 10px; padding: 7px 12px; font-family: inherit; font-weight: 600;
+        font-size: 12px; cursor: pointer;
+    }
+    .btn-ghost:active { transform: scale(.96); }
+
+    /* ===== CARD ===== */
+    .card {
+        background: #fff; border-radius: 16px; padding: 14px;
+        box-shadow: 0 2px 10px rgba(15,23,42,.06);
+        margin-bottom: 12px; border: 1px solid #e2e8f0;
+    }
+    .card-title { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+    /* ===== BUDGET ===== */
+    .budget-row { display: flex; gap: 8px; align-items: center; }
+    .budget-row .rp { font-weight: 700; color: #059669; font-size: 15px; }
+    #budgetInput {
+        flex: 1; border: 2px solid #d1fae5; border-radius: 10px; padding: 9px 12px;
+        font-family: inherit; font-size: 17px; font-weight: 700; color: #065f46; outline: none;
+        min-width: 0;
+    }
+    #budgetInput:focus { border-color: #059669; }
+    .progress-wrap { margin-top: 12px; }
+    .progress-labels { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px; }
+    .progress-labels b { font-size: 12.5px; }
+    .progress-bar { height: 12px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+    .progress-fill {
+        height: 100%; width: 0%; border-radius: 99px; transition: width .35s ease, background .3s;
+        background: linear-gradient(90deg, #10b981, #34d399);
+    }
+    .progress-fill.warn  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .progress-fill.over  { background: linear-gradient(90deg, #dc2626, #f87171); }
+    .sisa-text { font-size: 12px; margin-top: 7px; font-weight: 600; }
+    .sisa-text.ok   { color: #059669; }
+    .sisa-text.warn { color: #d97706; }
+    .sisa-text.over { color: #dc2626; }
+    .over-banner {
+        display: none; margin-top: 8px; background: #fef2f2; border: 1px solid #fecaca;
+        color: #b91c1c; font-size: 12px; font-weight: 600; border-radius: 10px; padding: 9px 12px;
+    }
+    .over-banner.show { display: block; animation: shake .4s; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+    /* ===== SCANNER ===== */
+    #reader { border-radius: 12px; overflow: hidden; display: none; width: 100%; background: #000; }
+    #reader video { width: 100% !important; }
+    .scan-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .btn {
+        flex: 1; border: none; border-radius: 12px; padding: 12px; font-family: inherit;
+        font-weight: 700; font-size: 13.5px; cursor: pointer; transition: transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: linear-gradient(135deg, #059669, #10b981); color: #fff; box-shadow: 0 3px 10px rgba(5,150,105,.35); }
+    .btn-danger  { background: #fee2e2; color: #b91c1c; }
+    .btn-secondary { background: #e0f2fe; color: #0369a1; }
+    .btn-outline { background: #fff; color: #334155; border: 1.5px solid #cbd5e1; }
+    .scan-hint { font-size: 11px; color: #64748b; margin-top: 8px; text-align: center; line-height: 1.5; }
+    .manual-barcode { display: flex; gap: 8px; margin-top: 10px; }
+    .manual-barcode input {
+        flex: 1; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;
+        font-family: inherit; font-size: 13px; outline: none; min-width: 0;
+    }
+    .manual-barcode input:focus { border-color: #059669; }
+
+    /* ===== CART ===== */
+    .cart-empty { text-align: center; color: #94a3b8; font-size: 12.5px; padding: 18px 0; }
+    .cart-empty span { font-size: 30px; display: block; margin-bottom: 6px; }
+    .cart-item {
+        display: grid; grid-template-columns: 1fr auto; gap: 4px 8px;
+        padding: 10px 0; border-bottom: 1px dashed #e2e8f0;
+    }
+    .cart-item:last-child { border-bottom: none; }
+    .ci-name { font-size: 13px; font-weight: 600; color: #1e293b; word-break: break-word; }
+    .ci-code { font-size: 10px; color: #94a3b8; grid-column: 1 / -1; }
+    .ci-price { font-size: 13.5px; font-weight: 700; color: #059669; text-align: right; }
+    .ci-controls { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+    .qty-btn {
+        width: 26px; height: 26px; border-radius: 8px; border: none; background: #ecfdf5;
+        color: #059669; font-weight: 800; font-size: 15px; cursor: pointer; font-family: inherit;
+    }
+    .qty-btn.del { background: #fee2e2; color: #dc2626; width: auto; padding: 0 9px; font-size: 12px; }
+    .ci-qty { font-size: 13px; font-weight: 700; min-width: 22px; text-align: center; }
+    .cart-total-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding-top: 12px; margin-top: 6px; border-top: 2px solid #e2e8f0;
+    }
+    .cart-total-row .label { font-size: 12px; color: #64748b; font-weight: 600; }
+    .cart-total-row .val { font-size: 19px; font-weight: 800; color: #059669; }
+    .cart-total-row .val.over { color: #dc2626; }
+
+    /* ===== FLOATING BAR ===== */
+    .bottom-bar {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
+        border-top: 1px solid #e2e8f0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        display: flex; gap: 10px; align-items: center; justify-content: center; z-index: 50;
+    }
+    .bottom-bar .total-mini { font-size: 12px; color: #64748b; font-weight: 600; }
+    .bottom-bar .total-mini b { display: block; font-size: 16px; color: #059669; }
+    .bottom-bar .total-mini b.over { color: #dc2626; }
+
+    /* ===== MODAL ===== */
+    .modal-backdrop {
+        display: none; position: fixed; inset: 0; background: rgba(15,23,42,.55);
+        z-index: 100; justify-content: center; align-items: flex-end;
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal {
+        background: #fff; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0;
+        padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); animation: slideUp .25s ease;
+        max-height: 88vh; overflow-y: auto;
+    }
+    @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .modal h3 { font-size: 15px; margin-bottom: 4px; }
+    .modal .sub { font-size: 11.5px; color: #64748b; margin-bottom: 12px; }
+    .field { margin-bottom: 10px; }
+    .field label { display: block; font-size: 11.5px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+    .field input {
+        width: 100%; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 11px 12px;
+        font-family: inherit; font-size: 14px; outline: none;
+    }
+    .field input:focus { border-color: #059669; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+    /* ===== HISTORY ===== */
+    .hist-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+    .hist-top { display: flex; justify-content: space-between; align-items: center; }
+    .hist-date { font-size: 12px; font-weight: 700; color: #334155; }
+    .hist-total { font-size: 13px; font-weight: 800; color: #059669; }
+    .hist-meta { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
+    .hist-del { background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 4px; }
+
+    /* ===== TOAST ===== */
+    #toast-container { position: fixed; top: 14px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 200; pointer-events: none; }
+    .toast {
+        background: #1e293b; color: #fff; font-size: 12px; font-weight: 600;
+        border-radius: 99px; padding: 9px 16px; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+        display: flex; gap: 10px; align-items: center; max-width: 92%;
+        animation: fadeIn .2s ease; pointer-events: auto;
+    }
+    .toast.success { background: #059669; }
+    .toast.error { background: #dc2626; }
+    .toast.info { background: #0369a1; }
+    .toast button {
+        background: rgba(255,255,255,.2); border: none; color: #fff; font-family: inherit;
+        font-weight: 700; font-size: 11px; border-radius: 99px; padding: 4px 10px; cursor: pointer;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+    <header>
+        <div>
+            <h1>🛒 Scan Budget</h1>
+            <p>Scanner belanjaan &amp; penghitung budget</p>
+        </div>
+        <button class="btn-ghost" onclick="openHistory()">🗂️ Riwayat</button>
+    </header>
+
+    <!-- BUDGET -->
+    <div class="card">
+        <div class="card-title">🎯 Budget Belanja</div>
+        <div class="budget-row">
+            <span class="rp">Rp</span>
+            <input type="text" id="budgetInput" inputmode="numeric" placeholder="misal: 500.000" oninput="onBudgetInput()">
+            <button class="btn-ghost" style="background:#ecfdf5;color:#059669;border-color:#a7f3d0" onclick="clearBudget()">Reset</button>
+        </div>
+        <div class="progress-wrap">
+            <div class="progress-labels">
+                <span>Terpakai: <b id="usedText">Rp 0</b></span>
+                <span id="pctText">0%</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="sisa-text ok" id="sisaText">Masukkan budget untuk mulai memantau 👆</div>
+        </div>
+        <div class="over-banner" id="overBanner">⚠️ <b>Melebihi budget!</b> Pertimbangkan untuk membuang beberapa barang.</div>
+    </div>
+
+    <!-- SCANNER -->
+    <div class="card">
+        <div class="card-title">📷 Scan Barcode
+            <span style="font-size:10.5px;font-weight:500;color:#94a3b8" id="camStatus"></span>
+        </div>
+        <div id="reader"></div>
+        <div class="scan-actions" id="scanButtons">
+            <button class="btn btn-primary" id="btnStartScan" onclick="startScan()">📷 MULAI SCAN</button>
+        </div>
+        <div class="manual-barcode">
+            <input type="text" id="manualCode" placeholder="Ketik barcode manual (misal: 8991002101234)" inputmode="numeric">
+            <button class="btn btn-secondary" style="flex:0 0 auto;padding:10px 14px" onclick="addManualCode()">Cari</button>
+        </div>
+        <div class="scan-hint">Arahkan kamera ke barcode produk. Scan pertama akan diminta nama &amp; harga —<br>scan berikutnya langsung dikenali otomatis! 🧠</div>
+        <div class="scan-hint"><a href="#" onclick="runCameraDiagnosis(); return false;" style="color:#059669;font-weight:700;">🔧 Kamera tidak muncul? Klik di sini untuk cek otomatis</a></div>
+        <div id="diagResult" style="display:none;text-align:left;font-size:11.5px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-top:8px;line-height:1.7"></div>
+    </div>
+
+    <!-- CART -->
+    <div class="card">
+        <div class="card-title">
+            🧺 Keranjang (<span id="itemCount">0</span> jenis)
+            <button class="btn-ghost" style="background:#ecfdf5;color:#059669;border-color:#a7f3d0" onclick="openProductModal(null)">➕ Manual</button>
+        </div>
+        <div id="cartList"><div class="cart-empty"><span>🛒</span>Belum ada barang. Scan barcode di atas untuk mulai!</div></div>
+        <div class="cart-total-row">
+            <span class="label">TOTAL BELANJAAN</span>
+            <span class="val" id="cartTotal">Rp 0</span>
+        </div>
+    </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+    <div class="total-mini">TOTAL<b id="miniTotal">Rp 0</b></div>
+    <button class="btn btn-primary" style="flex:0 0 150px" onclick="finishTrip()">✅ Selesai</button>
+</div>
+
+<!-- MODAL PRODUK -->
+<div class="modal-backdrop" id="productModal">
+    <div class="modal">
+        <h3 id="pmTitle">➕ Tambah Produk</h3>
+        <div class="sub" id="pmSub">Isi nama &amp; harga. Data akan diingat untuk scan berikutnya.</div>
+        <div class="field">
+            <label>Barcode (opsional)</label>
+            <input type="text" id="pmCode" placeholder="Kosongkan jika tanpa barcode">
+        </div>
+        <div class="field">
+            <label>Nama Produk</label>
+            <input type="text" id="pmName" placeholder="misal: Indomie Goreng">
+        </div>
+        <div class="field">
+            <label>Harga Satuan</label>
+            <input type="text" id="pmPrice" inputmode="numeric" placeholder="misal: 3.500" oninput="formatPriceInput(this)">
+        </div>
+        <div class="field">
+            <label>Jumlah</label>
+            <input type="number" id="pmQty" inputmode="numeric" value="1" min="1">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeProductModal()">Batal</button>
+            <button class="btn btn-primary" onclick="saveProductModal()">💾 Simpan</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RIWAYAT -->
+<div class="modal-backdrop" id="historyModal">
+    <div class="modal">
+        <h3>🗂️ Riwayat Belanja</h3>
+        <div class="sub">Catatan belanja yang sudah selesai (tersimpan di HP ini).</div>
+        <div id="historyList"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeHistory()">Tutup</button>
+            <button class="btn btn-danger" onclick="clearHistory()">Hapus Semua</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+    // ================= STATE =================
+    const STORE_KEY = 'scan_budget_v1';
+    let state = { budget: 0, cart: [], products: {}, history: [] };
+
+    function loadState() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+            state = Object.assign(state, raw);
+            state.cart = Array.isArray(state.cart) ? state.cart : [];
+            state.products = state.products || {};
+            state.history = Array.isArray(state.history) ? state.history : [];
+            state.budget = Number(state.budget) || 0;
+        } catch (e) { /* mulai baru */ }
+    }
+    function saveState() {
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+    }
+
+    // ================= UTIL =================
+    function fmtRp(n) { return 'Rp ' + (Number(n) || 0).toLocaleString('id-ID'); }
+    function parseDigits(str) { return Number(String(str).replace(/[^\d]/g, '')) || 0; }
+    function formatPriceInput(el) {
+        const raw = parseDigits(el.value);
+        el.value = raw ? raw.toLocaleString('id-ID') : '';
+    }
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    function toast(msg, type, actionLabel, actionFn) {
+        const c = document.getElementById('toast-container');
+        const t = document.createElement('div');
+        t.className = 'toast' + (type ? ' ' + type : '');
+        const span = document.createElement('span');
+        span.textContent = msg;
+        t.appendChild(span);
+        if (actionLabel) {
+            const b = document.createElement('button');
+            b.textContent = actionLabel;
+            b.onclick = () => { actionFn && actionFn(); t.remove(); };
+            t.appendChild(b);
+        }
+        c.appendChild(t);
+        setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, actionLabel ? 5000 : 2200);
+    }
+
+    function beep() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator(), gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine'; osc.frequency.value = 1200;
+            gain.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+            osc.start(); osc.stop(ctx.currentTime + 0.2);
+        } catch (e) {}
+        if (navigator.vibrate) navigator.vibrate(60);
+    }
+
+    // ================= BUDGET =================
+    function onBudgetInput() {
+        state.budget = parseDigits(document.getElementById('budgetInput').value);
+        document.getElementById('budgetInput').value = state.budget ? state.budget.toLocaleString('id-ID') : '';
+        saveState(); recalc();
+    }
+    function clearBudget() {
+        state.budget = 0; document.getElementById('budgetInput').value = '';
+        saveState(); recalc();
+    }
+
+    // ================= HITUNG & RENDER =================
+    function cartTotal() { return state.cart.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 0), 0); }
+    function cartQty() { return state.cart.reduce((s, it) => s + (Number(it.qty) || 0), 0); }
+
+    function recalc() {
+        const total = cartTotal();
+        document.getElementById('itemCount').textContent = state.cart.length;
+        document.getElementById('cartTotal').textContent = fmtRp(total);
+        document.getElementById('cartTotal').classList.toggle('over', state.budget > 0 && total > state.budget);
+        const mini = document.getElementById('miniTotal');
+        mini.textContent = fmtRp(total);
+        mini.classList.toggle('over', state.budget > 0 && total > state.budget);
+
+        document.getElementById('usedText').textContent = fmtRp(total);
+
+        const fill = document.getElementById('progressFill');
+        const pct = document.getElementById('pctText');
+        const sisa = document.getElementById('sisaText');
+        const banner = document.getElementById('overBanner');
+
+        if (state.budget <= 0) {
+            fill.style.width = '0%'; fill.className = 'progress-fill';
+            pct.textContent = '—';
+            sisa.className = 'sisa-text ok';
+            sisa.textContent = 'Masukkan budget untuk mulai memantau 👆';
+            banner.classList.remove('show');
+            return;
+        }
+        const ratio = total / state.budget;
+        pct.textContent = Math.min(999, Math.round(ratio * 100)) + '%';
+        fill.style.width = Math.min(100, ratio * 100) + '%';
+        fill.className = 'progress-fill' + (ratio >= 1 ? ' over' : ratio >= 0.75 ? ' warn' : '');
+
+        const sisaVal = state.budget - total;
+        if (ratio >= 1) {
+            sisa.className = 'sisa-text over';
+            sisa.textContent = '⚠️ Lewat ' + fmtRp(total - state.budget) + ' dari budget!';
+            banner.classList.add('show');
+        } else if (ratio >= 0.75) {
+            sisa.className = 'sisa-text warn';
+            sisa.textContent = 'Sisa budget: ' + fmtRp(sisaVal) + ' — hati-hati, hampir habis!';
+            banner.classList.remove('show');
+        } else {
+            sisa.className = 'sisa-text ok';
+            sisa.textContent = 'Sisa budget: ' + fmtRp(sisaVal) + ' ✅';
+            banner.classList.remove('show');
+        }
+    }
+
+    function renderCart() {
+        const list = document.getElementById('cartList');
+        if (state.cart.length === 0) {
+            list.innerHTML = '<div class="cart-empty"><span>🛒</span>Belum ada barang. Scan barcode di atas untuk mulai!</div>';
+        } else {
+            list.innerHTML = state.cart.map(it => `
+                <div class="cart-item">
+                    <div class="ci-name">${escapeHtml(it.name)}</div>
+                    <div class="ci-price">${fmtRp((it.price || 0) * (it.qty || 0))}</div>
+                    <div class="ci-code">${it.barcode ? '🏷️ ' + escapeHtml(it.barcode) : '✍️ input manual'} · ${fmtRp(it.price)} /pcs</div>
+                    <div class="ci-controls">
+                        <button class="qty-btn" onclick="changeQty('${it.uid}', -1)">−</button>
+                        <span class="ci-qty">${it.qty}</span>
+                        <button class="qty-btn" onclick="changeQty('${it.uid}', 1)">+</button>
+                        <button class="qty-btn del" onclick="removeItem('${it.uid}')">Hapus</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        recalc();
+    }
+
+    // ================= KERANJANG =================
+    function changeQty(uid, delta) {
+        const it = state.cart.find(x => x.uid === uid);
+        if (!it) return;
+        it.qty = Math.max(1, (Number(it.qty) || 1) + delta);
+        saveState(); renderCart();
+    }
+    function removeItem(uid) {
+        const idx = state.cart.findIndex(x => x.uid === uid);
+        if (idx < 0) return;
+        const removed = state.cart.splice(idx, 1)[0];
+        saveState(); renderCart();
+        toast('Dihapus: ' + removed.name, 'error', 'Kembalikan', () => {
+            state.cart.splice(idx, 0, removed);
+            saveState(); renderCart();
+        });
+    }
+
+    function addToCart(barcode, name, price, qty) {
+        const q = Math.max(1, Number(qty) || 1);
+        const existing = state.cart.find(x => x.barcode && barcode && x.barcode === barcode && x.name === name);
+        if (existing) {
+            existing.qty += q;
+            toast('➕ ' + name + ' x' + q + ' (' + fmtRp(price * q) + ')', 'success');
+        } else {
+            state.cart.push({ uid: 'u' + Date.now() + Math.random().toString(36).slice(2, 5), barcode: barcode || '', name: name, price: Number(price) || 0, qty: q });
+            toast('➕ ' + name + ' — ' + fmtRp(price) + (q > 1 ? ' x' + q : ''), 'success');
+        }
+        saveState(); renderCart();
+    }
+
+    // ================= MODAL PRODUK =================
+    let pmContext = { fromBarcode: null };
+    let resumeScanAfterClose = false; // scanner aktif sebelum modal dibuka → lanjutkan setelah ditutup
+
+    function openProductModal(barcode) {
+        pmContext.fromBarcode = barcode || null;
+        document.getElementById('pmTitle').textContent = barcode ? '🏷️ Produk Baru Terdeteksi' : '➕ Tambah Produk Manual';
+        document.getElementById('pmSub').textContent = barcode
+            ? 'Barcode ' + barcode + ' belum dikenal. Isi nama & harganya — lain kali scan langsung terisi!'
+            : 'Isi nama & harga. Jika diisi barcode-nya, akan diingat untuk scan berikutnya.';
+        document.getElementById('pmCode').value = barcode || '';
+        document.getElementById('pmCode').readOnly = !!barcode;
+        document.getElementById('pmName').value = '';
+        document.getElementById('pmPrice').value = '';
+        document.getElementById('pmQty').value = 1;
+        // Jika kamera sedang aktif, hentikan dulu & tandai untuk dilanjutkan setelah modal ditutup
+        if (scanActive) {
+            resumeScanAfterClose = true;
+            pauseScanForModal();
+        }
+        document.getElementById('productModal').classList.add('show');
+        setTimeout(() => document.getElementById('pmName').focus(), 150);
+    }
+    function closeProductModal() {
+        document.getElementById('productModal').classList.remove('show');
+        pmContext.fromBarcode = null;
+        maybeResumeScan();
+    }
+    function saveProductModal() {
+        const code = document.getElementById('pmCode').value.trim();
+        const name = document.getElementById('pmName').value.trim();
+        const price = parseDigits(document.getElementById('pmPrice').value);
+        const qty = Math.max(1, parseInt(document.getElementById('pmQty').value) || 1);
+        if (!name) { toast('Nama produk wajib diisi', 'error'); return; }
+        if (price <= 0) { toast('Harga harus lebih dari 0', 'error'); return; }
+        if (code) { state.products[code] = { name: name, price: price }; }
+        addToCart(code, name, price, qty);
+        if (code) toast('🧠 Diingat untuk scan berikutnya: ' + name, 'success');
+        saveState();
+        document.getElementById('productModal').classList.remove('show');
+        pmContext.fromBarcode = null;
+        maybeResumeScan();
+    }
+
+    // ================= SCANNER =================
+    let html5QrCode = null;
+    let lastScan = { code: '', time: 0 };
+    let scanActive = false;
+    let scanStoppedByUser = false;
+    let libLoadPromise = null;
+
+    function isSecure() { return window.isSecureContext; }
+
+    // ===== DIAGNOSA KAMERA OTOMATIS =====
+    async function runCameraDiagnosis() {
+        const box = document.getElementById('diagResult');
+        box.style.display = 'block';
+        box.innerHTML = '<i>Memeriksa...</i>';
+        const lines = [];
+        const check = (ok, good, bad) => lines.push((ok ? '✅ ' : '❌ ') + (ok ? good : bad));
+
+        // 1. HTTPS
+        check(isSecure(),
+            'Koneksi aman (HTTPS) — syarat kamera terpenuhi',
+            'Kamera butuh HTTPS! Buka lewat link yang diawali https:// (bukan file:// atau http://)');
+
+        // 2. Browser dalam aplikasi (webview WA/IG/FB)
+        const ua = navigator.userAgent || '';
+        const isWebview = /FBAN|FBAV|Instagram|Line\/|MicroMessenger/.test(ua);
+        check(!isWebview,
+            'Browser standalone — bagus',
+            'Kamu buka dari browser dalam aplikasi (WA/IG/FB). Kamera sering diblokir di sini! Salin link-nya, buka di Chrome / Safari.');
+
+        // 3. API kamera tersedia
+        check(!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+            'API kamera tersedia',
+            'API kamera tidak tersedia. Update Chrome (Android) / Safari (iPhone), atau buka di browser lain.');
+
+        // 4. Uji izin kamera langsung
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                const tracks = stream.getVideoTracks();
+                lines.push('✅ Izin kamera DIBERIKAN');
+                lines.push('ℹ️ Kamera terdeteksi: ' + (tracks[0] && tracks[0].label ? tracks[0].label : '(tanpa nama)'));
+                tracks.forEach(t => t.stop());
+            } catch (e) {
+                const n = (e && e.name) || '';
+                if (n === 'NotAllowedError' || n === 'SecurityError') {
+                    lines.push('❌ Izin kamera DITOLAK. Solusi: buka ikon 🔒 / ⓘ di address bar → Izin / Permissions → Kamera → Izinkan, lalu muat ulang halaman.');
+                } else if (n === 'NotFoundError' || n === 'OverconstrainedError') {
+                    lines.push('❌ Kamera tidak ditemukan / tidak mendukung. Coba browser lain.');
+                } else if (n === 'NotReadableError' || n === 'TrackStartError') {
+                    lines.push('❌ Kamera sedang dipakai aplikasi lain. Tutup aplikasi kamera/video call lalu coba lagi.');
+                } else {
+                    lines.push('❌ Gagal akses kamera: ' + n + ' — ' + ((e && e.message) || ''));
+                }
+            }
+        }
+
+        // 5. Library scanner
+        check(typeof Html5Qrcode !== 'undefined',
+            'Library scanner siap',
+            'Library scanner gagal termuat — cek koneksi internet lalu muat ulang halaman.');
+
+        box.innerHTML = '<b style="font-size:12px">Hasil Pengecekan Kamera:</b><br>' + lines.join('<br>');
+    }
+
+    // ===== LOAD LIBRARY DENGAN FALLBACK CDN =====
+    function loadScannerLib() {
+        if (typeof Html5Qrcode !== 'undefined') return Promise.resolve(true);
+        if (libLoadPromise) return libLoadPromise;
+        const urls = [
+            'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js',
+            'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js'
+        ];
+        libLoadPromise = new Promise(resolve => {
+            let i = 0;
+            const tryNext = () => {
+                if (i >= urls.length) { resolve(false); return; }
+                const s = document.createElement('script');
+                s.src = urls[i++];
+                s.onload = () => resolve(true);
+                s.onerror = () => { s.remove(); tryNext(); };
+                document.head.appendChild(s);
+            };
+            tryNext();
+        });
+        return libLoadPromise;
+    }
+
+    function makeScanner() {
+        return new Html5Qrcode('reader', {
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.ITF
+            ],
+            verbose: false
+        });
+    }
+
+    function scanConfig() {
+        return {
+            fps: 10,
+            qrbox: (vw, vh) => { const s = Math.min(vw, vh); return { width: Math.floor(s * 0.85), height: Math.floor(s * 0.5) }; }
+        };
+    }
+
+    function scanStartedUI() {
+        scanActive = true;
+        document.getElementById('camStatus').textContent = 'kamera aktif ✅';
+        const startBtn = document.getElementById('btnStartScan');
+        if (startBtn) {
+            startBtn.outerHTML = '<button class="btn btn-danger" id="btnStopScan" onclick="stopScan()">⏹ STOP SCAN</button>';
+        }
+    }
+    function scanStoppedUI() {
+        scanActive = false;
+        document.getElementById('reader').style.display = 'none';
+        document.getElementById('camStatus').textContent = '';
+        const stopBtn = document.getElementById('btnStopScan');
+        if (stopBtn) {
+            stopBtn.outerHTML = '<button class="btn btn-primary" id="btnStartScan" onclick="startScan()">📷 MULAI SCAN</button>';
+        }
+    }
+
+    async function startScan() {
+        scanStoppedByUser = false;
+        resumeScanAfterClose = false;
+        if (!isSecure()) {
+            runCameraDiagnosis();
+            toast('Kamera butuh HTTPS. Buka lewat link yang diawali https://', 'error');
+            return;
+        }
+        document.getElementById('reader').style.display = 'block';
+        document.getElementById('camStatus').textContent = 'menyiapkan kamera...';
+        const ok = await loadScannerLib();
+        if (!ok) {
+            scanStoppedUI();
+            toast('Library scanner gagal termuat. Cek koneksi internet lalu muat ulang.', 'error');
+            return;
+        }
+        if (!html5QrCode) { try { html5QrCode = makeScanner(); } catch (e) { html5QrCode = null; } }
+        if (!html5QrCode) {
+            scanStoppedUI();
+            toast('Gagal menyiapkan scanner. Muat ulang halaman.', 'error');
+            return;
+        }
+        // Tingkat 1: kamera belakang (paling umum untuk scan)
+        try {
+            await html5QrCode.start({ facingMode: 'environment' }, scanConfig(), onScanSuccess, () => {});
+            scanStartedUI();
+            return;
+        } catch (e1) { /* coba cara lain */ }
+        // Tingkat 2: kamera mana pun yang tersedia
+        try {
+            await html5QrCode.start({ facingMode: 'user' }, scanConfig(), onScanSuccess, () => {});
+            scanStartedUI();
+            toast('Memakai kamera depan karena kamera belakang tidak tersedia.', 'info');
+            return;
+        } catch (e2) { /* coba cara lain */ }
+        // Tingkat 3: pilih manual dari daftar kamera perangkat
+        try {
+            const cams = await Html5Qrcode.getCameras();
+            if (!cams || cams.length === 0) throw new Error('Tidak ada kamera terdeteksi');
+            const back = cams.find(c => /back|rear|environment|belakang/i.test(c.label)) || cams[cams.length - 1];
+            await html5QrCode.start(back.id, scanConfig(), onScanSuccess, () => {});
+            scanStartedUI();
+            return;
+        } catch (e3) {
+            scanStoppedUI();
+            runCameraDiagnosis();
+            toast('Kamera gagal dibuka. Hasil diagnosa ditampilkan di bawah tombol.', 'error');
+        }
+    }
+
+    function pauseScanForModal() {
+        // Kamera dijeda saat modal produk terbuka (biar tidak boros baterai & tidak di belakang modal)
+        if (!html5QrCode) return;
+        try {
+            html5QrCode.stop().then(() => { try { html5QrCode.clear(); } catch (e) {} }).catch(() => {});
+        } catch (e) {}
+        scanActive = false;
+        document.getElementById('reader').style.display = 'none';
+        document.getElementById('camStatus').textContent = 'dijeda sementara...';
+    }
+
+    function maybeResumeScan() {
+        if (resumeScanAfterClose && !scanStoppedByUser) {
+            resumeScanAfterClose = false;
+            setTimeout(() => { startScan(); }, 300);
+        } else {
+            resumeScanAfterClose = false;
+        }
+    }
+
+    function stopScan() {
+        scanStoppedByUser = true;
+        resumeScanAfterClose = false;
+        if (!html5QrCode) { scanStoppedUI(); return; }
+        try {
+            html5QrCode.stop().then(() => { try { html5QrCode.clear(); } catch (e) {} scanStoppedUI(); }).catch(() => { scanStoppedUI(); });
+        } catch (e) { scanStoppedUI(); }
+    }
+
+    function onScanSuccess(decodedText) {
+        const code = String(decodedText).trim();
+        const now = Date.now();
+        if (code === lastScan.code && now - lastScan.time < 2000) return; // anti scan dobel
+        lastScan = { code: code, time: now };
+        beep();
+        addByBarcode(code);
+    }
+
+    function addByBarcode(code) {
+        const known = state.products[code];
+        if (known && known.name && known.price > 0) {
+            addToCart(code, known.name, known.price, 1);
+        } else {
+            openProductModal(code);
+        }
+    }
+
+    function addManualCode() {
+        const code = document.getElementById('manualCode').value.trim();
+        if (!code) { toast('Ketik kode barcode dulu', 'error'); return; }
+        document.getElementById('manualCode').value = '';
+        addByBarcode(code);
+    }
+
+    // ================= SELESAI & RIWAYAT =================
+    function finishTrip() {
+        if (state.cart.length === 0) { toast('Keranjang masih kosong', 'error'); return; }
+        const total = cartTotal(), qty = cartQty();
+        const over = state.budget > 0 && total > state.budget;
+        const ok = confirm(
+            'Selesai belanja?\n\n' +
+            'Total: ' + fmtRp(total) + ' (' + qty + ' barang)\n' +
+            (state.budget > 0 ? 'Budget: ' + fmtRp(state.budget) + (over ? ' ⚠️ MELEBIHI!' : ' ✅ hemat ' + fmtRp(state.budget - total)) : '') +
+            '\n\nSimpan ke riwayat & kosongkan keranjang?'
+        );
+        if (!ok) return;
+        state.history.unshift({
+            date: new Date().toISOString(),
+            total: total, qty: qty,
+            budget: state.budget,
+            items: state.cart.map(it => ({ name: it.name, price: it.price, qty: it.qty }))
+        });
+        if (state.history.length > 50) state.history.length = 50;
+        state.cart = [];
+        saveState(); renderCart(); closeHistory();
+        toast(over ? '⚠️ Tersimpan. Belanja melebihi budget!' : '🎉 Tersimpan! Belanja dalam budget 👏', over ? 'error' : 'success');
+    }
+
+    function openHistory() {
+        const list = document.getElementById('historyList');
+        if (state.history.length === 0) {
+            list.innerHTML = '<div class="cart-empty"><span>🗂️</span>Belum ada riwayat belanja.</div>';
+        } else {
+            list.innerHTML = state.history.map((h, i) => {
+                const d = new Date(h.date);
+                const dateStr = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                const info = h.budget > 0 ? (h.total > h.budget ? '⚠️ lewat budget' : '✅ hemat ' + fmtRp(h.budget - h.total)) : '';
+                return `
+                    <div class="hist-item">
+                        <div class="hist-top">
+                            <div>
+                                <div class="hist-date">${dateStr}</div>
+                                <div class="hist-meta">${h.qty} barang · budget ${h.budget > 0 ? fmtRp(h.budget) : '—'} ${info}</div>
+                            </div>
+                            <div style="text-align:right">
+                                <div class="hist-total">${fmtRp(h.total)}</div>
+                                <button class="hist-del" onclick="deleteHistory(${i})">Hapus</button>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+        document.getElementById('historyModal').classList.add('show');
+    }
+    function closeHistory() { document.getElementById('historyModal').classList.remove('show'); }
+    function deleteHistory(i) { state.history.splice(i, 1); saveState(); openHistory(); }
+    function clearHistory() {
+        if (state.history.length === 0) return;
+        if (confirm('Hapus semua riwayat belanja?')) { state.history = []; saveState(); openHistory(); }
+    }
+
+    // ================= INIT =================
+    loadState();
+    if (state.budget) document.getElementById('budgetInput').value = state.budget.toLocaleString('id-ID');
+    renderCart();
+
+    document.getElementById('manualCode').addEventListener('keydown', e => { if (e.key === 'Enter') addManualCode(); });
+    document.getElementById('productModal').addEventListener('click', e => { if (e.target.id === 'productModal') closeProductModal(); });
+    document.getElementById('historyModal').addEventListener('click', e => { if (e.target.id === 'historyModal') closeHistory(); });
+    window.addEventListener('pagehide', stopScan);
+    window.addEventListener('beforeunload', stopScan);
+</script>
+</body>
+</html>
