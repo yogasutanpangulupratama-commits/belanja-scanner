@@ -4,39 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#059669">
-<title>Scan Budget — Scan Harga Langsung Masuk Keranjang</title>
+<title>Cepat Belanja — Ketik, Masuk Keranjang</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    body {
-        font-family: 'Poppins', sans-serif;
-        background: #f0fdf4;
-        color: #1e293b;
-        min-height: 100vh;
-        padding-bottom: 92px;
-    }
+    body { font-family: 'Poppins', sans-serif; background: #f0fdf4; color: #1e293b; min-height: 100vh; padding-bottom: 92px; }
     .app { max-width: 480px; margin: 0 auto; padding: 12px; }
 
     header {
-        background: linear-gradient(135deg, #059669, #047857);
-        color: #fff; border-radius: 16px; padding: 14px 16px;
-        display: flex; align-items: center; justify-content: space-between;
+        background: linear-gradient(135deg, #059669, #047857); color: #fff; border-radius: 16px;
+        padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
         box-shadow: 0 4px 14px rgba(5,150,105,.3); margin-bottom: 12px;
     }
     header h1 { font-size: 17px; font-weight: 800; }
     header p { font-size: 10.5px; opacity: .85; }
     .btn-ghost {
         background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.35);
-        border-radius: 10px; padding: 7px 12px; font-family: inherit; font-weight: 600;
-        font-size: 12px; cursor: pointer;
+        border-radius: 10px; padding: 7px 12px; font-family: inherit; font-weight: 600; font-size: 12px; cursor: pointer;
     }
     .btn-ghost:active { transform: scale(.96); }
 
-    .card {
-        background: #fff; border-radius: 16px; padding: 14px;
-        box-shadow: 0 2px 10px rgba(15,23,42,.06);
-        margin-bottom: 12px; border: 1px solid #e2e8f0;
-    }
+    .card { background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 2px 10px rgba(15,23,42,.06); margin-bottom: 12px; border: 1px solid #e2e8f0; }
     .card-title { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; }
 
     /* ===== BUDGET ===== */
@@ -51,11 +39,7 @@
     .progress-labels { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px; }
     .progress-labels b { font-size: 12.5px; }
     .progress-bar { height: 12px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
-    .progress-fill {
-        height: 100%; width: 0%; border-radius: 99px;
-        transition: width .35s ease, background .3s;
-        background: linear-gradient(90deg, #10b981, #34d399);
-    }
+    .progress-fill { height: 100%; width: 0%; border-radius: 99px; transition: width .35s ease, background .3s; background: linear-gradient(90deg, #10b981, #34d399); }
     .progress-fill.warn { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
     .progress-fill.over { background: linear-gradient(90deg, #dc2626, #f87171); }
     .sisa-text { font-size: 12px; margin-top: 7px; font-weight: 600; }
@@ -63,34 +47,57 @@
     .sisa-text.warn { color: #d97706; }
     .sisa-text.over { color: #dc2626; }
 
-    /* ===== TOMBOL SCAN BESAR ===== */
-    .btn-scan-big {
-        width: 100%; border: none; border-radius: 16px; padding: 18px;
-        background: linear-gradient(135deg, #059669, #10b981); color: #fff;
-        font-family: inherit; font-weight: 800; font-size: 17px; cursor: pointer;
-        box-shadow: 0 4px 14px rgba(5,150,105,.35);
+    /* ===== INPUT KETIK ===== */
+    .type-row { display: flex; gap: 8px; }
+    #entryInput {
+        flex: 1; border: 2px solid #d1fae5; border-radius: 12px; padding: 13px 14px;
+        font-family: inherit; font-size: 15px; font-weight: 600; color: #1e293b; outline: none; min-width: 0;
     }
-    .btn-scan-big:active { transform: scale(.98); }
-    .scan-hint { font-size: 11px; color: #64748b; margin-top: 8px; text-align: center; line-height: 1.5; }
+    #entryInput:focus { border-color: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,.12); }
+    .btn-add {
+        flex: 0 0 auto; border: none; border-radius: 12px; padding: 0 18px;
+        background: linear-gradient(135deg, #059669, #10b981); color: #fff;
+        font-family: inherit; font-weight: 800; font-size: 14px; cursor: pointer;
+        box-shadow: 0 3px 10px rgba(5,150,105,.35);
+    }
+    .btn-add:active { transform: scale(.96); }
+    .entry-preview {
+        margin-top: 9px; font-size: 12.5px; font-weight: 700; color: #065f46;
+        background: #ecfdf5; border: 1px dashed #6ee7b7; border-radius: 10px; padding: 9px 12px;
+        display: none; line-height: 1.5;
+    }
+    .entry-preview.show { display: block; }
+    .entry-preview .pv-bad { color: #b91c1c; font-weight: 600; }
+    .entry-hint { font-size: 11px; color: #64748b; margin-top: 8px; line-height: 1.6; }
+    .entry-hint b { color: #059669; }
+    .chips-wrap { margin-top: 10px; }
+    .chips-label { font-size: 10.5px; color: #94a3b8; font-weight: 600; margin-bottom: 6px; }
+    .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+    .chip {
+        flex: 0 0 auto; background: #f8fafc; border: 1px solid #e2e8f0; color: #334155;
+        font-family: inherit; font-size: 11.5px; font-weight: 600; border-radius: 99px;
+        padding: 7px 12px; cursor: pointer; white-space: nowrap;
+    }
+    .chip b { color: #059669; }
+    .chip:active { background: #ecfdf5; border-color: #6ee7b7; }
 
     /* ===== KERANJANG ===== */
     .cart-empty { text-align: center; color: #94a3b8; font-size: 12.5px; padding: 16px 0; }
     .cart-empty span { font-size: 30px; display: block; margin-bottom: 6px; }
-    .cart-item {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 10px 2px; border-bottom: 1px dashed #e2e8f0;
-    }
+    .cart-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 10px 2px; border-bottom: 1px dashed #e2e8f0; }
     .cart-item:last-child { border-bottom: none; }
-    .ci-name { font-size: 13px; font-weight: 600; color: #1e293b; }
-    .ci-price { font-size: 14px; font-weight: 800; color: #059669; display: flex; align-items: center; gap: 10px; }
-    .ci-del {
-        border: none; background: #fee2e2; color: #dc2626; width: 26px; height: 26px;
-        border-radius: 8px; font-weight: 800; cursor: pointer; font-family: inherit; font-size: 13px;
+    .ci-name { font-size: 13.5px; font-weight: 700; color: #1e293b; word-break: break-word; }
+    .ci-sub { font-size: 11px; color: #94a3b8; }
+    .ci-right { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+    .ci-price { font-size: 14px; font-weight: 800; color: #059669; }
+    .ci-controls { display: flex; align-items: center; gap: 6px; }
+    .qty-btn {
+        width: 27px; height: 27px; border-radius: 8px; border: none; background: #ecfdf5;
+        color: #059669; font-weight: 800; font-size: 15px; cursor: pointer; font-family: inherit;
     }
-    .cart-total-row {
-        display: flex; justify-content: space-between; align-items: center;
-        padding-top: 12px; margin-top: 4px; border-top: 2px solid #e2e8f0;
-    }
+    .ci-del { border: none; background: #fee2e2; color: #dc2626; width: 27px; height: 27px; border-radius: 8px; font-weight: 800; cursor: pointer; font-family: inherit; font-size: 12px; }
+    .ci-qty { font-size: 13px; font-weight: 700; min-width: 20px; text-align: center; }
+    .cart-total-row { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; margin-top: 4px; border-top: 2px solid #e2e8f0; }
     .cart-total-row .label { font-size: 12px; color: #64748b; font-weight: 600; }
     .cart-total-row .val { font-size: 19px; font-weight: 800; color: #059669; }
     .cart-total-row .val.over { color: #dc2626; }
@@ -100,101 +107,23 @@
         position: fixed; bottom: 0; left: 0; right: 0;
         background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
         border-top: 1px solid #e2e8f0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-        display: flex; gap: 10px; align-items: center; justify-content: center; z-index: 50;
+        display: flex; gap: 14px; align-items: center; justify-content: center; z-index: 50;
     }
-    .bottom-bar .total-mini { font-size: 12px; color: #64748b; font-weight: 600; }
-    .bottom-bar .total-mini b { display: block; font-size: 16px; color: #059669; }
-    .bottom-bar .total-mini b.over { color: #dc2626; }
-    .bottom-bar .sisa-mini { font-size: 12px; color: #64748b; font-weight: 600; text-align: right; }
-    .bottom-bar .sisa-mini b { display: block; font-size: 16px; color: #059669; }
-    .bottom-bar .sisa-mini b.warn { color: #d97706; }
-    .bottom-bar .sisa-mini b.over { color: #dc2626; }
-
-    /* ===== LAYAR SCAN FULLSCREEN ===== */
-    .scan-screen {
-        display: none; position: fixed; inset: 0; z-index: 100;
-        background: #0f172a; flex-direction: column;
-    }
-    .scan-screen.show { display: flex; }
-    .scan-top {
-        padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;
-        color: #fff; background: rgba(15,23,42,.9);
-    }
-    .scan-top .st-title { font-size: 13px; font-weight: 700; }
-    .scan-top .st-sub { font-size: 10.5px; opacity: .7; }
-    .btn-close-scan {
-        background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3);
-        border-radius: 10px; padding: 8px 14px; font-family: inherit; font-weight: 700; font-size: 12px; cursor: pointer;
-    }
-    .scan-video-wrap { flex: 1; position: relative; overflow: hidden; background: #000; }
-    #scanVideo { width: 100%; height: 100%; object-fit: cover; }
-    .scan-frame {
-        position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-        width: 84%; height: 26%; border: 3px dashed rgba(255,255,255,.75);
-        border-radius: 14px; pointer-events: none;
-        box-shadow: 0 0 0 2000px rgba(15,23,42,.35);
-    }
-    .scan-frame-label {
-        position: absolute; left: 50%; top: calc(50% + 15%); transform: translateX(-50%);
-        color: #fff; font-size: 11px; background: rgba(15,23,42,.65);
-        padding: 4px 10px; border-radius: 99px; pointer-events: none; white-space: nowrap;
-    }
-    .scan-ctrl {
-        position: absolute; bottom: 12px; left: 0; right: 0;
-        display: flex; justify-content: center; gap: 10px;
-    }
-    .scan-ctrl button {
-        width: 44px; height: 44px; border-radius: 50%; border: none;
-        background: rgba(15,23,42,.7); color: #fff; font-size: 17px;
-        cursor: pointer; font-family: inherit; backdrop-filter: blur(4px);
-    }
-    .scan-ctrl button:active { transform: scale(.92); }
-    .cam-error {
-        position: absolute; inset: 0; z-index: 8;
-        background: rgba(15,23,42,.96); color: #fff;
-        display: none; flex-direction: column; align-items: center; justify-content: center;
-        gap: 10px; padding: 20px; text-align: center;
-    }
-    .cam-error .ce-icon { font-size: 38px; }
-    .cam-error .ce-title { font-size: 15px; font-weight: 800; }
-    .cam-error .ce-msg { font-size: 12px; line-height: 1.7; opacity: .88; white-space: pre-line; }
-    .webview-banner {
-        background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
-        border-radius: 12px; padding: 10px 12px; font-size: 11.5px; font-weight: 600;
-        margin-bottom: 12px; line-height: 1.6;
-    }
-    .scan-result {
-        min-height: 92px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-        background: rgba(15,23,42,.95); color: #fff;
-        display: flex; flex-direction: column; gap: 10px; align-items: center;
-    }
-    .detected-price { font-size: 30px; font-weight: 800; color: #a7f3d0; min-height: 38px; letter-spacing: .5px; }
-    .detected-status { font-size: 11.5px; opacity: .75; text-align: center; min-height: 16px; }
-    .scan-actions-row { display: flex; gap: 8px; width: 100%; }
-    .scan-actions-row .btn {
-        flex: 1; border: none; border-radius: 12px; padding: 13px; font-family: inherit;
+    .bottom-bar .stat { font-size: 11px; color: #64748b; font-weight: 600; }
+    .bottom-bar .stat b { display: block; font-size: 15px; color: #059669; }
+    .bottom-bar .stat b.over { color: #dc2626; }
+    .bottom-bar .stat b.warn { color: #d97706; }
+    .btn {
+        flex: 1; border: none; border-radius: 12px; padding: 12px; font-family: inherit;
         font-weight: 700; font-size: 13.5px; cursor: pointer;
     }
-    .btn-manual-price { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.28); }
-    .btn-finish-scan { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
-
-    /* ===== FLASH SUKSES ===== */
-    .add-flash {
-        position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(.85);
-        background: rgba(5,150,105,.96); color: #fff; border-radius: 16px;
-        padding: 14px 22px; text-align: center; opacity: 0; pointer-events: none;
-        transition: opacity .18s ease, transform .18s ease; z-index: 5;
-        box-shadow: 0 8px 24px rgba(0,0,0,.4);
-    }
-    .add-flash.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    .add-flash .af-price { font-size: 24px; font-weight: 800; }
-    .add-flash .af-sisa { font-size: 11.5px; opacity: .9; margin-top: 2px; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
+    .btn-danger { background: #fee2e2; color: #b91c1c; }
+    .btn-outline { background: #fff; color: #334155; border: 1.5px solid #cbd5e1; }
 
     /* ===== MODAL RIWAYAT ===== */
-    .modal-backdrop {
-        display: none; position: fixed; inset: 0; background: rgba(15,23,42,.55);
-        z-index: 150; justify-content: center; align-items: flex-end;
-    }
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 150; justify-content: center; align-items: flex-end; }
     .modal-backdrop.show { display: flex; }
     .modal {
         background: #fff; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0;
@@ -210,14 +139,6 @@
     .hist-total { font-size: 13px; font-weight: 800; color: #059669; }
     .hist-del { background: none; border: none; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 4px; }
     .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
-    .btn {
-        flex: 1; border: none; border-radius: 12px; padding: 12px; font-family: inherit;
-        font-weight: 700; font-size: 13.5px; cursor: pointer;
-    }
-    .btn:active { transform: scale(.97); }
-    .btn-primary { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
-    .btn-danger { background: #fee2e2; color: #b91c1c; }
-    .btn-outline { background: #fff; color: #334155; border: 1.5px solid #cbd5e1; }
 
     /* ===== TOAST ===== */
     #toast-container { position: fixed; top: 14px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 300; pointer-events: none; }
@@ -240,15 +161,11 @@
 <div class="app">
     <header>
         <div>
-            <h1>🛒 Scan Budget</h1>
-            <p>Scan harga → langsung terhitung</p>
+            <h1>🛒 Cepat Belanja</h1>
+            <p>Ketik nama, jumlah, harga — masuk keranjang</p>
         </div>
         <button class="btn-ghost" onclick="openHistory()">🗂️ Riwayat</button>
     </header>
-
-    <div class="webview-banner" id="webviewBanner" style="display:none">
-        ⚠️ Kamu membuka ini dari browser dalam aplikasi (WA/IG/FB). Kamera sering diblokir di sana. <b>Salin link</b> lalu buka di <b>Chrome (Android) / Safari (iPhone)</b>.
-    </div>
 
     <!-- BUDGET -->
     <div class="card">
@@ -264,20 +181,35 @@
                 <span id="pctText">—</span>
             </div>
             <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-            <div class="sisa-text ok" id="sisaText">Isi budget dulu, lalu scan harganya 👇</div>
+            <div class="sisa-text ok" id="sisaText">Isi budget dulu, lalu ketik belanjaanmu 👇</div>
         </div>
     </div>
 
-    <!-- SCAN -->
+    <!-- KETIK MANUAL -->
     <div class="card">
-        <button class="btn-scan-big" onclick="openScanScreen()">📷 SCAN HARGA SEKARANG</button>
-        <div class="scan-hint">Arahkan kamera ke <b>angka harga</b> di label/etiket.<br>Terbaca → otomatis masuk keranjang &amp; budget berkurang. ✅</div>
+        <div class="card-title">⌨️ Tulis Belanjaan</div>
+        <div class="type-row">
+            <input type="text" id="entryInput" placeholder="contoh: susu 1 20000" autocomplete="off" autocapitalize="off" enterkeyhint="done" oninput="renderPreview()">
+            <button class="btn-add" onclick="submitEntry()">➕ Tambah</button>
+        </div>
+        <div class="entry-preview" id="entryPreview"></div>
+        <div class="entry-hint">
+            Format bebas: <b>nama jumlah harga</b> — contoh: <b>susu 1 20000</b> · <b>indomie goreng 2 7000</b> · <b>kopi 20.000</b><br>
+            Kalau cuma ketik <b>susu</b>, harga terakhir yang kamu pakai akan diingat otomatis. 🧠
+        </div>
+        <div class="chips-wrap" id="chipsWrap" style="display:none">
+            <div class="chips-label">⚡ Belanjaan yang sering kamu tulis — ketuk untuk langsung masuk:</div>
+            <div class="chips" id="chips"></div>
+        </div>
     </div>
 
     <!-- KERANJANG -->
     <div class="card">
-        <div class="card-title">🧺 Keranjang (<span id="itemCount">0</span> barang)</div>
-        <div id="cartList"><div class="cart-empty"><span>🛒</span>Belum ada barang. Ketuk tombol scan di atas!</div></div>
+        <div class="card-title">
+            🧺 Keranjang (<span id="itemCount">0</span> jenis)
+            <button class="btn-ghost" style="background:#fee2e2;color:#dc2626;border-color:#fecaca" onclick="clearCart()">Kosongkan</button>
+        </div>
+        <div id="cartList"><div class="cart-empty"><span>🛒</span>Belum ada barang. Ketik di atas, tekan Enter!</div></div>
         <div class="cart-total-row">
             <span class="label">TOTAL BELANJAAN</span>
             <span class="val" id="cartTotal">Rp 0</span>
@@ -287,52 +219,9 @@
 
 <!-- BOTTOM BAR -->
 <div class="bottom-bar">
-    <div class="total-mini">TOTAL<b id="miniTotal">Rp 0</b></div>
-    <div class="sisa-mini">SISA BUDGET<b id="miniSisa">—</b></div>
+    <div class="stat">TOTAL<b id="miniTotal">Rp 0</b></div>
+    <div class="stat">SISA BUDGET<b id="miniSisa">—</b></div>
     <button class="btn btn-primary" style="flex:0 0 130px" onclick="finishTrip()">✅ Selesai</button>
-</div>
-
-<!-- LAYAR SCAN FULLSCREEN -->
-<div class="scan-screen" id="scanScreen">
-    <div class="scan-top">
-        <div>
-            <div class="st-title">📷 Scan Harga</div>
-            <div class="st-sub" id="scanStatus">Menyiapkan kamera...</div>
-        </div>
-        <button class="btn-close-scan" onclick="closeScanScreen()">✕ Tutup</button>
-    </div>        <div class="scan-video-wrap" id="scanVideoWrap">
-            <video id="scanVideo" autoplay playsinline muted></video>
-            <div class="scan-frame" id="scanFrame"></div>
-            <div class="scan-frame-label" id="scanFrameLabel">arahkan harga ke kotak · ketuk layar untuk menggeser</div>
-        <div class="scan-ctrl">
-            <button onclick="moveBand(-1)" title="Naikkan kotak">▲</button>
-            <button onclick="moveBand(1)" title="Turunkan kotak">▼</button>
-            <button onclick="toggleTorch()" title="Lampu flash">💡</button>
-            <button onclick="cycleZoom()" title="Perbesar" id="btnZoom">🔍</button>
-        </div>
-        <div class="add-flash" id="addFlash">
-            <div class="af-price" id="afPrice">Rp 0</div>
-            <div class="af-sisa" id="afSisa"></div>
-        </div>
-        <div class="cam-error" id="camError">
-            <div class="ce-icon">📷</div>
-            <div class="ce-title">Kamera Bermasalah</div>
-            <div class="ce-msg" id="ceMsg"></div>
-            <div style="display:flex;gap:8px;width:100%;max-width:320px">
-                <button class="btn btn-finish-scan" id="ceRetry" onclick="retryCamera()">🔄 Coba Lagi</button>
-                <button class="btn btn-manual-price" onclick="manualAddPrice()">⌨️ Ketik</button>
-            </div>
-        </div>
-    </div>
-    <div class="scan-result">
-        <div class="detected-price" id="detectedPrice">—</div>
-        <div class="detected-status" id="detectedStatus">Mencari angka harga...</div>
-        <div class="scan-actions-row">
-            <button class="btn btn-manual-price" onclick="undoLastAdd()">↩️ Batal</button>
-            <button class="btn btn-manual-price" onclick="manualAddPrice()">⌨️ Ketik</button>
-            <button class="btn btn-finish-scan" onclick="closeScanScreen()">✅ Selesai</button>
-        </div>
-    </div>
 </div>
 
 <!-- MODAL RIWAYAT -->
@@ -352,17 +241,26 @@
 
 <script>
     // ================= STATE =================
-    const STORE_KEY = 'scan_budget_v2';
-    let state = { budget: 0, cart: [], history: [] };
+    const STORE_KEY = 'cepat_belanja_v1';
+    const OLD_KEY = 'scan_budget_v2';
+    let state = { budget: 0, cart: [], history: [], memory: {} };
 
     function loadState() {
         try {
-            const raw = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
-            state = Object.assign(state, raw);
-            state.cart = Array.isArray(state.cart) ? state.cart : [];
-            state.history = Array.isArray(state.history) ? state.history : [];
-            state.budget = Number(state.budget) || 0;
+            const raw = JSON.parse(localStorage.getItem(STORE_KEY)) || null;
+            if (raw) {
+                state = Object.assign(state, raw);
+            } else {
+                // Migrasi dari versi lama (scan): ambil budget & riwayatnya
+                const old = JSON.parse(localStorage.getItem(OLD_KEY)) || {};
+                state.budget = Number(old.budget) || 0;
+                state.history = Array.isArray(old.history) ? old.history : [];
+            }
         } catch (e) {}
+        state.cart = Array.isArray(state.cart) ? state.cart : [];
+        state.history = Array.isArray(state.history) ? state.history : [];
+        state.memory = state.memory || {};
+        state.budget = Number(state.budget) || 0;
     }
     function saveState() {
         try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
@@ -390,17 +288,73 @@
         c.appendChild(t);
         setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, actionLabel ? 5000 : 2200);
     }
-    function beep() {
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator(), gain = ctx.createGain();
-            osc.connect(gain); gain.connect(ctx.destination);
-            osc.type = 'sine'; osc.frequency.value = 1200;
-            gain.gain.setValueAtTime(0.25, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-            osc.start(); osc.stop(ctx.currentTime + 0.2);
-        } catch (e) {}
-        if (navigator.vibrate) navigator.vibrate(70);
+
+    // ================= PARSER: "susu 1 20000" =================
+    // Aturan:
+    //  - "x2" / "2x"           -> jumlah eksplisit
+    //  - angka terakhir >= 100 -> harga
+    //  - angka pertama <= 99   -> jumlah (kalau ada 2 angka atau lebih)
+    //  - sisanya               -> nama barang
+    function parseEntry(text) {
+        const tokens = String(text || '').trim().split(/\s+/).filter(Boolean);
+        const result = { name: '', qty: 1, price: 0, ok: false, error: '' };
+        if (tokens.length === 0) { result.error = 'Ketik dulu belanjaannya'; return result; }
+
+        const nums = [];       // angka biasa
+        let explicitQty = null;
+        const nameParts = [];
+
+        tokens.forEach(tok => {
+            const clean = tok.replace(/[.,]$/g, '');
+            // jumlah eksplisit: x2 / 2x
+            let m = clean.match(/^x(\d{1,3})$/i) || clean.match(/^(\d{1,3})x$/i);
+            if (m && explicitQty === null) { explicitQty = Number(m[1]) || 1; return; }
+            // angka (dukung 20.000 / 20,000 / 20000)
+            m = clean.match(/^\d{1,3}(?:[.,]\d{3})+$|^\d{1,7}$/);
+            if (m) { nums.push({ raw: clean, value: Number(clean.replace(/[.,]/g, '')) || 0 }); return; }
+            nameParts.push(tok);
+        });
+
+        result.name = nameParts.join(' ').replace(/^\W+|\W+$/g, '');
+        result.qty = explicitQty || 1;
+
+        if (nums.length === 0) {
+            // Tidak ada angka: coba ingatan harga
+            const key = result.name.toLowerCase();
+            const mem = state.memory[key];
+            if (mem && mem.price > 0) {
+                result.price = mem.price;
+                if (explicitQty === null && mem.qty > 1) result.qty = mem.qty;
+                result.fromMemory = true;
+            } else {
+                result.error = 'Tulis harganya juga. Contoh: susu 1 20000';
+                return result;
+            }
+        } else if (nums.length === 1) {
+            const v = nums[0].value;
+            const mem = state.memory[result.name.toLowerCase()];
+            if (v <= 99 && mem && mem.price > 0) {
+                // "susu 2" -> 2 susu, harga dari memori
+                result.price = mem.price;
+                result.qty = v;
+                result.fromMemory = true;
+            } else {
+                result.price = v;
+            }
+        } else {
+            // >= 2 angka: terakhir = harga, sebelumnya (jika kecil) = jumlah
+            result.price = nums[nums.length - 1].value;
+            const first = nums[0].value;
+            if (explicitQty === null && nums.length === 2 && first >= 1 && first <= 99) {
+                result.qty = first;
+            }
+        }
+
+        if (!result.name) { result.error = 'Nama barangnya belum ada. Contoh: susu 1 20000'; return result; }
+        if (result.price <= 0) { result.error = 'Harganya belum tepat. Contoh: susu 1 20000'; return result; }
+        if (result.qty <= 0) result.qty = 1;
+        result.ok = true;
+        return result;
     }
 
     // ================= BUDGET =================
@@ -415,7 +369,7 @@
     }
 
     // ================= HITUNG & RENDER =================
-    function cartTotal() { return state.cart.reduce((s, it) => s + (Number(it.price) || 0), 0); }
+    function cartTotal() { return state.cart.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 0), 0); }
 
     function recalc() {
         const total = cartTotal();
@@ -437,7 +391,7 @@
             fill.style.width = '0%'; fill.className = 'progress-fill';
             pct.textContent = '—';
             sisa.className = 'sisa-text ok';
-            sisa.textContent = 'Isi budget dulu, lalu scan harganya 👇';
+            sisa.textContent = 'Isi budget dulu, lalu ketik belanjaanmu 👇';
             miniSisa.textContent = '—'; miniSisa.className = '';
             return;
         }
@@ -465,537 +419,121 @@
     function renderCart() {
         const list = document.getElementById('cartList');
         if (state.cart.length === 0) {
-            list.innerHTML = '<div class="cart-empty"><span>🛒</span>Belum ada barang. Ketuk tombol scan di atas!</div>';
+            list.innerHTML = '<div class="cart-empty"><span>🛒</span>Belum ada barang. Ketik di atas, tekan Enter!</div>';
         } else {
-            list.innerHTML = state.cart.map((it, i) => `
+            list.innerHTML = state.cart.map(it => `
                 <div class="cart-item">
-                    <div class="ci-name">🛍️ Barang ${i + 1}</div>
-                    <div class="ci-price">${fmtRp(it.price)}<button class="ci-del" onclick="removeItem('${it.uid}')">✕</button></div>
+                    <div>
+                        <div class="ci-name">${escapeHtml(it.name)}</div>
+                        <div class="ci-sub">${it.qty} × ${fmtRp(it.price)}</div>
+                    </div>
+                    <div class="ci-right">
+                        <div class="ci-controls">
+                            <button class="qty-btn" onclick="changeQty('${it.uid}', -1)">−</button>
+                            <span class="ci-qty">${it.qty}</span>
+                            <button class="qty-btn" onclick="changeQty('${it.uid}', 1)">+</button>
+                            <button class="ci-del" onclick="removeItem('${it.uid}')">✕</button>
+                        </div>
+                        <div class="ci-price">${fmtRp(it.price * it.qty)}</div>
+                    </div>
                 </div>
             `).join('');
         }
         recalc();
     }
 
+    function changeQty(uid, delta) {
+        const it = state.cart.find(x => x.uid === uid);
+        if (!it) return;
+        it.qty = Math.max(1, (Number(it.qty) || 1) + delta);
+        saveState(); renderCart();
+    }
     function removeItem(uid) {
         const idx = state.cart.findIndex(x => x.uid === uid);
         if (idx < 0) return;
         const removed = state.cart.splice(idx, 1)[0];
         saveState(); renderCart();
-        toast('Dihapus ' + fmtRp(removed.price), 'error', 'Kembalikan', () => {
+        toast('Dihapus: ' + removed.name, 'error', 'Kembalikan', () => {
             state.cart.splice(idx, 0, removed);
             saveState(); renderCart();
         });
     }
-
-    function addPrice(price) {
-        const p = Number(price) || 0;
-        if (p <= 0) return false;
-        state.cart.push({ uid: 'u' + Date.now() + Math.random().toString(36).slice(2, 5), price: p });
+    function clearCart() {
+        if (state.cart.length === 0) return;
+        if (!confirm('Kosongkan semua keranjang?')) return;
+        state.cart = [];
         saveState(); renderCart();
-        return true;
     }
 
-    // ================= LAYAR SCAN =================
-    let ocrStream = null, ocrWorker = null, ocrTimer = null, ocrBusy = false;
-    let tesseractLibPromise = null;
-    let lastAddTime = 0, lastVideoTime = -1;
-    const ADD_COOLDOWN = 1800;   // jeda antar tambahan otomatis (ms)
-    const VOTES_NEEDED = 3;      // suara minimal untuk mengunci harga
-    const VOTE_WINDOW_MS = 4500; // jendela waktu voting
-    const SHARP_MIN = 50;        // ambang ketajaman frame (Laplacian variance)
-    let votes = [];              // kumpulan bacaan {price, t}
-    let bandPos = 0.5, torchOn = false, zoomIdx = 0, ocrRunning = false, tickParity = 0;
-    let cropCanvas = null, sharpCanvas = null;
-    const ZOOM_STEPS = [1, 2, 3];
-
-    function isSecure() { return window.isSecureContext; }
-
-    function loadTesseractLib() {
-        if (window.Tesseract) return Promise.resolve(true);
-        if (tesseractLibPromise) return tesseractLibPromise;
-        const urls = [
-            'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
-            'https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js'
-        ];
-        tesseractLibPromise = new Promise(resolve => {
-            let i = 0;
-            const tryNext = () => {
-                if (i >= urls.length) { resolve(false); return; }
-                const s = document.createElement('script');
-                s.src = urls[i++];
-                s.onload = () => resolve(true);
-                s.onerror = () => { s.remove(); tryNext(); };
-                document.head.appendChild(s);
-            };
-            tryNext();
-        });
-        return tesseractLibPromise;
+    function renderChips() {
+        const wrap = document.getElementById('chipsWrap');
+        const chips = document.getElementById('chips');
+        const entries = Object.entries(state.memory)
+            .sort((a, b) => (b[1].used || 0) - (a[1].used || 0))
+            .slice(0, 8);
+        if (entries.length === 0) { wrap.style.display = 'none'; return; }
+        wrap.style.display = 'block';
+        chips.innerHTML = entries.map(([name, m]) =>
+            `<button class="chip" onclick="quickAdd('${escapeHtml(name).replace(/'/g, "\\'")}')">${escapeHtml(name)} <b>${fmtRp(m.price)}</b></button>`
+        ).join('');
+    }
+    function quickAdd(name) {
+        const mem = state.memory[name.toLowerCase()];
+        if (!mem) return;
+        addToCart(name, mem.qty || 1, mem.price);
     }
 
-    async function ensureOcrWorker() {
-        if (ocrWorker) return ocrWorker;
-        const ok = await loadTesseractLib();
-        if (!ok) throw new Error('Mesin pembaca angka gagal dimuat — cek koneksi internet.');
-        ocrWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
-        await ocrWorker.setParameters({
-            tessedit_char_whitelist: '0123456789.,',
-            tessedit_pageseg_mode: '6',
-            user_defined_dpi: '300'
-        });
-        return ocrWorker;
-    }
-
-    function parsePriceText(text) {
-        // Perbaiki karakter yang sering salah baca OCR menjadi digit
-        const t = String(text || '').toUpperCase()
-            .replace(/[OQ]/g, '0').replace(/[IL|]/g, '1').replace(/Z/g, '2')
-            .replace(/S/g, '5').replace(/B/g, '8').replace(/G/g, '6');
-        const matches = t.match(/\d{1,3}(?:[.,\s]\d{3})+|\d{3,7}/g) || [];
-        let best = 0;
-        matches.forEach(m => {
-            const v = Number(m.replace(/[^\d]/g, '')) || 0;
-            if (v >= 100 && v <= 99999999 && v > best) best = v;
-        });
-        return best;
-    }
-
-    function isWebview() {
-        const ua = navigator.userAgent || '';
-        return /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|WhatsApp|\bwv\b/.test(ua);
-    }
-
-    function buildConstraints(level) {
-        if (level === 0) return { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } };
-        if (level === 1) return { video: { facingMode: 'environment' } };
-        return { video: true };
-    }
-
-    function showCamError(msg, withRetry) {
-        const p = document.getElementById('camError');
-        if (!p) return;
-        if (!msg) { p.style.display = 'none'; return; }
-        document.getElementById('ceMsg').textContent = msg;
-        document.getElementById('ceRetry').style.display = withRetry ? 'block' : 'none';
-        p.style.display = 'flex';
-    }
-
-    function attachTrackHandlers() {
-        const track = ocrStream && ocrStream.getVideoTracks()[0];
-        if (!track) return;
-        track.onended = () => {
-            const scr = document.getElementById('scanScreen');
-            if (scr && scr.classList.contains('show')) {
-                ocrRunning = false;
-                showCamError('Kamera terputus tiba-tiba. Biasanya karena aplikasi lain mengambil alih kamera.', true);
-            }
-        };
-    }
-
-    function isVideoBlack(video) {
-        try {
-            const c = document.createElement('canvas'); c.width = 64; c.height = 48;
-            const ctx = c.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(video, 0, 0, 64, 48);
-            const d = ctx.getImageData(0, 0, 64, 48).data;
-            let mn = 255, mx = 0;
-            for (let i = 0; i < d.length; i += 16) { const v = d[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
-            return (mx - mn) < 5;
-        } catch (e) { return false; }
-    }
-
-    let watchdogTimer = null, streamLevel = 0;
-    function stopStreamWatchdog() { clearInterval(watchdogTimer); watchdogTimer = null; }
-
-    // Watchdog: pantau kamera tiap 0,65 detik. Layar hitam / frame macet / video pause
-    // -> coba play ulang -> kalau tetap, mulai ulang stream dengan constraint lebih sederhana.
-    function setupStreamWatchdog(video) {
-        stopStreamWatchdog();
-        let checks = 0, lastT = -1, unhealthy = 0;
-        watchdogTimer = setInterval(async () => {
-            if (!ocrStream) { stopStreamWatchdog(); return; }
-            checks++;
-            if (video.paused) { try { await video.play(); } catch (e) {} }
-            const adv = video.currentTime !== lastT; lastT = video.currentTime;
-            const ok = video.videoWidth > 0 && adv && !isVideoBlack(video);
-            if (ok) {
-                unhealthy = 0; showCamError(null);
-                if (checks > 25) stopStreamWatchdog(); // cukup stabil, matikan pantauan
-                return;
-            }
-            unhealthy++;
-            if (unhealthy >= 6) { stopStreamWatchdog(); await recoverStream(video); }
-        }, 650);
-    }
-
-    async function recoverStream(video) {
-        showCamError('Kamera tidak aktif (layar hitam). Mencoba pemulihan otomatis...', false);
-        try { if (ocrStream) ocrStream.getTracks().forEach(t => t.stop()); } catch (e) {}
-        ocrStream = null;
-        for (let lvl = streamLevel + 1; lvl <= 2; lvl++) {
-            try {
-                ocrStream = await navigator.mediaDevices.getUserMedia(buildConstraints(lvl));
-                streamLevel = lvl;
-                video.srcObject = ocrStream;
-                await video.play();
-                attachTrackHandlers();
-                showCamError(null);
-                setupStreamWatchdog(video);
-                return;
-            } catch (e) { /* coba level berikutnya */ }
-        }
-        showCamError('Kamera gagal dibuka. Penyebab paling umum:\n1. Browser dalam aplikasi (WA/IG/FB) → salin link, buka di Chrome/Safari\n2. Izin kamera ditolak → ikon 🔒 di address bar → Kamera → Izinkan\n3. Kamera dipakai aplikasi lain → tutup aplikasinya', true);
-    }
-
-    function retryCamera() {
-        closeScanScreen();
-        setTimeout(openScanScreen, 250);
-    }
-
-    async function openScanScreen() {
-        if (!isSecure()) {
-            toast('Kamera butuh HTTPS. Buka lewat link yang diawali https://', 'error');
-            return;
-        }
-        document.getElementById('scanScreen').classList.add('show');
-        document.getElementById('scanStatus').textContent = 'Menyiapkan kamera...';
-        document.getElementById('detectedPrice').textContent = '—';
-        document.getElementById('detectedPrice').style.color = '#fff';
-        document.getElementById('detectedStatus').textContent = 'Mencari angka harga...';
-        votes = []; lastVideoTime = -1; tickParity = 0; lastAddTime = 0;
-        streamLevel = 0;
-        showCamError(null);
-        const video = document.getElementById('scanVideo');
-        if (isWebview()) {
-            showCamError('⚠️ Kamu membuka dari browser dalam aplikasi (WA/IG/FB) — kamera sering diblokir/di-blank di sana.\n\nSolusi: salin link ini, lalu buka di Chrome (Android) atau Safari (iPhone).', true);
-        }
-        for (let lvl = 0; lvl <= 2; lvl++) {
-            try {
-                ocrStream = await navigator.mediaDevices.getUserMedia(buildConstraints(lvl));
-                streamLevel = lvl;
-                video.srcObject = ocrStream;
-                await video.play();
-                attachTrackHandlers();
-                enableContinuousFocus();
-                document.getElementById('scanStatus').textContent = 'Kamera aktif ✅';
-                setupStreamWatchdog(video);
-                try {
-                    await ensureOcrWorker();
-                } catch (e) {
-                    showCamError('Mesin pembaca angka gagal dimuat. Cek koneksi internet, lalu ketuk Coba Lagi.', true);
-                    return;
-                }
-                clearInterval(ocrTimer);
-                ocrRunning = true;
-                updateFramePos();
-                ocrLoop();
-                return;
-            } catch (e) { /* lanjut level berikutnya */ }
-        }
-        showCamError('Kamera gagal dibuka. Penyebab paling umum:\n1. Izin kamera ditolak → ikon 🔒 di address bar → Kamera → Izinkan, lalu ketuk Coba Lagi\n2. Kamera dipakai aplikasi lain → tutup dulu aplikasinya\n3. Browser dalam aplikasi (WA/IG) → salin link, buka di Chrome/Safari', true);
-    }
-
-    function otsuThreshold(gray, n) {
-        const hist = new Array(256).fill(0);
-        for (let i = 0; i < n; i++) hist[gray[i]]++;
-        let sum = 0;
-        for (let t = 0; t < 256; t++) sum += t * hist[t];
-        let sumB = 0, wB = 0, maxVar = 0, thresh = 127;
-        for (let t = 0; t < 256; t++) {
-            wB += hist[t];
-            if (wB === 0) continue;
-            const wF = n - wB;
-            if (wF === 0) break;
-            sumB += t * hist[t];
-            const mB = sumB / wB, mF = (sum - sumB) / wF;
-            const v = wB * wF * (mB - mF) * (mB - mF);
-            if (v > maxVar) { maxVar = v; thresh = t; }
-        }
-        return thresh;
-    }
-
-    // Hitung posisi kotak panduan di koordinat VIDEO (bukan layar).
-    // Video ditampilkan dengan object-fit:cover sehingga terpotong — kalau crop
-    // pakai koordinat video mentah, OCR membaca baris label yang LAIN.
-    function getBoxCropRect(video) {
-        const vw = video.videoWidth, vh = video.videoHeight;
-        const wrap = video.parentElement;
-        const ww = wrap.clientWidth, wh = wrap.clientHeight;
-        const scale = Math.max(ww / vw, wh / vh); // skala object-fit:cover
-        const offX = (vw * scale - ww) / 2;       // bagian video yang terpotong kiri-kanan
-        const offY = (vh * scale - wh) / 2;       // bagian video yang terpotong atas-bawah
-        // Kotak panduan di ruang LAYAR (persen, sama dengan CSS .scan-frame):
-        const topPct = 15 + bandPos * 70;         // pusat kotak (% tinggi layar)
-        const hFrac = 0.26, wFrac = 0.84, lFrac = 0.08;
-        const sx = lFrac * ww;
-        const sy = (topPct / 100) * wh - (hFrac * wh) / 2;
-        const sw = wFrac * ww, sh = hFrac * wh;
-        // Petakan ke ruang VIDEO
-        let vx = (sx + offX) / scale;
-        let vy = (sy + offY) / scale;
-        let vwid = sw / scale, vhei = sh / scale;
-        // Jaminan di dalam batas video
-        vx = Math.max(0, Math.min(vx, vw - 2));
-        vy = Math.max(0, Math.min(vy, vh - 2));
-        vwid = Math.min(vwid, vw - vx);
-        vhei = Math.min(vhei, vh - vy);
-        return { vx, vy, vwid, vhei };
-    }
-
-    // Ambil frame kamera -> potong PERSIS area kotak di layar -> perbaiki kontras
-    function preprocessFrame(video, binarize) {
-        const vw = video.videoWidth, vh = video.videoHeight;
-        if (!vw || !vh) return null;
-        const r = getBoxCropRect(video);
-        if (r.vwid < 10 || r.vhei < 6) return null;
-        const W = 1000;
-        if (!cropCanvas) cropCanvas = document.createElement('canvas');
-        const c = cropCanvas;
-        c.width = W;
-        c.height = Math.max(1, Math.round(r.vhei / r.vwid * W));
-        const ctx = c.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(video, r.vx, r.vy, r.vwid, r.vhei, 0, 0, W, c.height);
-        const img = ctx.getImageData(0, 0, W, c.height);
-        const d = img.data;
-        const n = W * c.height;
-        const gray = new Uint8ClampedArray(n);
-        let mn = 255, mx = 0;
-        for (let i = 0, p = 0; i < n; i++, p += 4) {
-            const g = (d[p] * 0.299 + d[p + 1] * 0.587 + d[p + 2] * 0.114) | 0;
-            gray[i] = g;
-            if (g < mn) mn = g;
-            if (g > mx) mx = g;
-        }
-        // Regang kontras supaya angka lebih menonjol
-        const range = (mx - mn) || 1;
-        for (let i = 0; i < n; i++) gray[i] = ((gray[i] - mn) * 255 / range) | 0;
-        if (binarize) {
-            const th = otsuThreshold(gray, n);
-            for (let i = 0, p = 0; i < n; i++, p += 4) {
-                const v = gray[i] > th ? 255 : 0;
-                d[p] = d[p + 1] = d[p + 2] = v; d[p + 3] = 255;
-            }
+    // ================= TAMBAH BARANG =================
+    function addToCart(name, qty, price) {
+        const existing = state.cart.find(x => x.name.toLowerCase() === name.toLowerCase());
+        if (existing) {
+            existing.qty += qty;
+            existing.price = price; // pakai harga terbaru
+            toast('➕ ' + name + ' x' + qty + ' (total ' + fmtRp(price * existing.qty) + ')', 'success');
         } else {
-            for (let i = 0, p = 0; i < n; i++, p += 4) {
-                d[p] = d[p + 1] = d[p + 2] = gray[i]; d[p + 3] = 255;
-            }
+            state.cart.push({ uid: 'u' + Date.now() + Math.random().toString(36).slice(2, 5), name: name, qty: qty, price: price });
+            toast('➕ ' + name + ' — ' + qty + ' × ' + fmtRp(price), 'success');
         }
-        ctx.putImageData(img, 0, 0);
-        return c;
+        // Ingat ke memori
+        const key = name.toLowerCase();
+        const mem = state.memory[key] || { price: 0, qty: 1, used: 0 };
+        mem.price = price; mem.qty = qty; mem.used = (mem.used || 0) + 1;
+        state.memory[key] = mem;
+        saveState(); renderCart(); renderChips();
     }
 
-    // ===== KETAJAMAN FRAME: hanya frame fokus yang di-OCR (mengurangi salah baca drastis) =====
-    function laplacianVariance(srcCanvas) {
-        if (!sharpCanvas) sharpCanvas = document.createElement('canvas');
-        const sw = 260, sh = Math.max(1, Math.round(srcCanvas.height / srcCanvas.width * sw));
-        sharpCanvas.width = sw; sharpCanvas.height = sh;
-        const sctx = sharpCanvas.getContext('2d', { willReadFrequently: true });
-        sctx.drawImage(srcCanvas, 0, 0, sw, sh);
-        const d = sctx.getImageData(0, 0, sw, sh).data;
-        const g = new Float32Array(sw * sh);
-        for (let i = 0, p = 0; i < g.length; i++, p += 4) g[i] = d[p] * 0.299 + d[p+1] * 0.587 + d[p+2] * 0.114;
-        let sum = 0, sum2 = 0, cnt = 0;
-        for (let y = 1; y < sh - 1; y++) for (let x = 1; x < sw - 1; x++) {
-            const i = y * sw + x;
-            const l = 4*g[i] - g[i-1] - g[i+1] - g[i-sw] - g[i+sw];
-            sum += l; sum2 += l*l; cnt++;
-        }
-        if (!cnt) return 0;
-        const mean = sum / cnt;
-        return sum2 / cnt - mean * mean;
+    function submitEntry() {
+        const input = document.getElementById('entryInput');
+        const parsed = parseEntry(input.value);
+        if (!parsed.ok) { toast(parsed.error, 'error'); return; }
+        addToCart(parsed.name, parsed.qty, parsed.price);
+        if (parsed.fromMemory) toast('🧠 Harga diingat dari tulisan terakhir', 'info');
+        input.value = '';
+        renderPreview();
+        input.focus();
     }
 
-    // ===== VOTING GESER: harga terkunci bila 3 bacaan cocok dalam jendela 4,5 detik =====
-    function pushVote(price, t) {
-        votes.push({ price: price, t: t });
-        while (votes.length && t - votes[0].t > VOTE_WINDOW_MS) votes.shift();
-        if (votes.length > 10) votes.shift();
-    }
-    function tallyVotes() {
-        const counts = new Map();
-        votes.forEach(v => { if (v.price > 0) counts.set(v.price, (counts.get(v.price) || 0) + 1); });
-        let best = 0, bestC = 0;
-        counts.forEach((c, p) => { if (c > bestC) { bestC = c; best = p; } });
-        return { price: best, count: bestC };
-    }
-    function voteDots(n) {
-        return '●'.repeat(Math.min(n, VOTES_NEEDED)) + '○'.repeat(Math.max(0, VOTES_NEEDED - n));
-    }
-
-    // ===== AUTOFOKUS KONTINU (bila didukung kamera) =====
-    async function enableContinuousFocus() {
-        try {
-            const track = ocrStream && ocrStream.getVideoTracks()[0];
-            if (track && track.getCapabilities) {
-                const caps = track.getCapabilities();
-                if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
-                    await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-                }
-            }
-        } catch (e) { /* diamkan */ }
-    }
-
-    // Loop OCR pintar: hanya frame BARU + TAJAM yang dibaca, bergilir 4 varian (abu/Otsu x 1-baris/blok)
-    async function ocrLoop() {
-        if (!ocrRunning || !ocrWorker) return;
-        const video = document.getElementById('scanVideo');
-        if (!video || video.readyState < 2 || !video.videoWidth) { setTimeout(ocrLoop, 150); return; }
-        const t = video.currentTime;
-        if (t === lastVideoTime) { setTimeout(ocrLoop, 70); return; } // frame belum berubah
-        lastVideoTime = t;
-        const statusEl = document.getElementById('detectedStatus');
-        ocrBusy = true;
-        try {
-            const gray = preprocessFrame(video, false);
-            if (!gray) { setTimeout(ocrLoop, 80); return; }
-            // Gerbang ketajaman: frame blur tidak di-OCR (mencegah salah baca seperti 21.488 tadi)
-            const sharp = laplacianVariance(gray);
-            if (sharp < SHARP_MIN) {
-                statusEl.textContent = 'Fokus dulu — dekatkan kamera perlahan ke label...';
-                setTimeout(ocrLoop, 90);
-                return;
-            }
-            const mode = tickParity; tickParity = (tickParity + 1) % 4;
-            const useOtsu = (mode === 1 || mode === 3);
-            const psm = (mode === 0 || mode === 1) ? '7' : '6';
-            await ocrWorker.setParameters({ tessedit_pageseg_mode: psm });
-            const target = useOtsu ? preprocessFrame(video, true) : gray;
-            const res = await ocrWorker.recognize(target);
-            const raw = String((res && res.data && res.data.text) || '').trim();
-            let price = parsePriceText(raw);
-            if (!price) {
-                // Cadangan: gabungkan deretan digit polos (misal "22 1458" -> 221458)
-                const dig = raw.replace(/\D/g, '');
-                if (dig.length >= 3 && dig.length <= 8) price = Number(dig) || 0;
-            }
-            handleOcrResult(price, raw);
-        } catch (e) { /* lanjut frame berikutnya */ }
-        finally { ocrBusy = false; }
-        if (ocrRunning) setTimeout(ocrLoop, 30);
-    }
-
-    function handleOcrResult(price, raw) {
-        const statusEl = document.getElementById('detectedStatus');
-        const priceEl = document.getElementById('detectedPrice');
-        const now = Date.now();
-        pushVote(price, now);
-        const { price: topPrice, count } = tallyVotes();
-        if (topPrice > 0) {
-            priceEl.textContent = fmtRp(topPrice);
-            priceEl.style.color = count >= VOTES_NEEDED ? '#a7f3d0' : '#fff';
-        }
-        if (topPrice > 0 && count >= VOTES_NEEDED && now - lastAddTime > ADD_COOLDOWN) {
-            votes = [];
-            autoAdd(topPrice);
-        } else if (topPrice > 0) {
-            statusEl.textContent = voteDots(count) + ' ' + count + '/' + VOTES_NEEDED + ' — tetap arahkan ke angka yang sama';
+    function renderPreview() {
+        const box = document.getElementById('entryPreview');
+        const raw = document.getElementById('entryInput').value;
+        if (!raw.trim()) { box.className = 'entry-preview'; box.innerHTML = ''; return; }
+        const p = parseEntry(raw);
+        box.className = 'entry-preview show';
+        if (p.ok) {
+            const memNote = p.fromMemory ? ' <span style="color:#d97706">🧠 harga diingat</span>' : '';
+            box.innerHTML = '🛒 <b>' + escapeHtml(p.name) + '</b> × ' + p.qty + ' @ ' + fmtRp(p.price) +
+                ' = <b>' + fmtRp(p.price * p.qty) + '</b>' + memNote;
+        } else if (p.name && p.price <= 0) {
+            box.innerHTML = '<span class="pv-bad">Harga belum lengkap — tambahkan angka harganya</span>';
         } else {
-            const nums = (raw.match(/\d{2,}/g) || []).slice(0, 3).join(' ');
-            statusEl.textContent = nums
-                ? ('Terbaca: "' + nums + '" — dekatkan / perbesar 🔍 / nyalakan 💡')
-                : 'Mencari angka harga... arahkan ke dalam kotak';
+            box.innerHTML = '<span class="pv-bad">' + escapeHtml(p.error || 'Menunggu…') + '</span>';
         }
-    }
-
-    function autoAdd(price) {
-        if (!addPrice(price)) return;
-        lastAddTime = Date.now();
-        votes = [];
-        beep();
-        const total = cartTotal();
-        const sisaVal = state.budget > 0 ? state.budget - total : null;
-        document.getElementById('afPrice').textContent = '+ ' + fmtRp(price);
-        document.getElementById('afSisa').textContent =
-            sisaVal === null ? ('Total: ' + fmtRp(total))
-            : (sisaVal >= 0 ? 'Sisa budget: ' + fmtRp(sisaVal) : '⚠️ Lewat budget ' + fmtRp(-sisaVal));
-        const flash = document.getElementById('addFlash');
-        flash.classList.add('show');
-        setTimeout(() => flash.classList.remove('show'), 1300);
-        document.getElementById('detectedStatus').textContent = '✅ Masuk keranjang! (salah? ketuk ↩️ Batal)';
-        if (sisaVal !== null && sisaVal < 0) {
-            setTimeout(() => { if (navigator.vibrate) navigator.vibrate([80, 60, 80]); }, 200);
-        }
-    }
-
-    function manualAddPrice() {
-        const raw = prompt('Ketik harganya (angka saja):', '');
-        if (raw === null) return;
-        const price = parseDigits(raw);
-        if (price <= 0) { toast('Harga tidak valid', 'error'); return; }
-        if (addPrice(price)) {
-            beep();
-            document.getElementById('detectedPrice').textContent = fmtRp(price);
-            document.getElementById('detectedStatus').textContent = '✅ Masuk keranjang!';
-        }
-    }
-
-    function undoLastAdd() {
-        const last = state.cart.pop();
-        if (!last) { toast('Belum ada barang untuk dibatalkan', 'error'); return; }
-        saveState(); renderCart();
-        document.getElementById('detectedPrice').textContent = '—';
-        document.getElementById('detectedPrice').style.color = '#fff';
-        document.getElementById('detectedStatus').textContent = '↩️ Dibatalkan: ' + fmtRp(last.price);
-        votes = [];
-    }
-
-    function closeScanScreen() {
-        document.getElementById('scanScreen').classList.remove('show');
-        ocrRunning = false;
-        clearInterval(ocrTimer); ocrTimer = null;
-        stopStreamWatchdog();
-        showCamError(null);
-        torchOn = false; zoomIdx = 0; streamLevel = 0;
-        votes = []; lastVideoTime = -1;
-        if (ocrStream) {
-            try { ocrStream.getTracks().forEach(t => t.stop()); } catch (e) {}
-            ocrStream = null;
-        }
-        const video = document.getElementById('scanVideo');
-        if (video) { try { video.srcObject = null; } catch (e) {} }
-    }
-
-    // ===== KONTROL KAMERA: geser kotak, flash, zoom =====
-    function updateFramePos() {
-        const topPct = 15 + bandPos * 70;
-        const f = document.getElementById('scanFrame');
-        const l = document.getElementById('scanFrameLabel');
-        if (f) f.style.top = topPct + '%';
-        if (l) l.style.top = 'calc(' + topPct + '% + 14%)';
-    }
-    function moveBand(dir) {
-        bandPos = Math.min(1, Math.max(0, bandPos + dir * 0.14));
-        updateFramePos();
-    }
-    async function toggleTorch() {
-        try {
-            const track = ocrStream && ocrStream.getVideoTracks()[0];
-            if (!track) return;
-            const caps = track.getCapabilities ? track.getCapabilities() : {};
-            if (!caps || !caps.torch) { toast('Flash tidak didukung kamera ini', 'error'); return; }
-            torchOn = !torchOn;
-            await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-            toast(torchOn ? '💡 Flash nyala' : '💡 Flash mati', 'info');
-        } catch (e) { toast('Flash gagal diatur', 'error'); }
-    }
-    async function cycleZoom() {
-        try {
-            const track = ocrStream && ocrStream.getVideoTracks()[0];
-            if (!track) return;
-            const caps = track.getCapabilities ? track.getCapabilities() : {};
-            if (!caps || !caps.zoom) { toast('Zoom tidak didukung — dekatkan kamera ke label', 'info'); return; }
-            const min = caps.zoom.min || 1, max = caps.zoom.max || 1;
-            zoomIdx = (zoomIdx + 1) % ZOOM_STEPS.length;
-            const z = Math.min(max, Math.max(min, ZOOM_STEPS[zoomIdx]));
-            await track.applyConstraints({ advanced: [{ zoom: z }] });
-            toast('🔍 Zoom: ' + z + 'x', 'info');
-        } catch (e) { toast('Zoom gagal diatur', 'error'); }
     }
 
     // ================= SELESAI & RIWAYAT =================
     function finishTrip() {
         if (state.cart.length === 0) { toast('Keranjang masih kosong', 'error'); return; }
-        const total = cartTotal(), qty = state.cart.length;
+        const total = cartTotal(), qty = state.cart.reduce((s, it) => s + it.qty, 0);
         const over = state.budget > 0 && total > state.budget;
         const ok = confirm(
             'Selesai belanja?\n\n' +
@@ -1006,7 +544,8 @@
         if (!ok) return;
         state.history.unshift({
             date: new Date().toISOString(),
-            total: total, qty: qty, budget: state.budget
+            total: total, qty: qty, budget: state.budget,
+            items: state.cart.map(it => ({ name: it.name, price: it.price, qty: it.qty }))
         });
         if (state.history.length > 50) state.history.length = 50;
         state.cart = [];
@@ -1023,11 +562,13 @@
                 const d = new Date(h.date);
                 const dateStr = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
                 const info = h.budget > 0 ? (h.total > h.budget ? ' ⚠️ lewat budget' : ' ✅ hemat ' + fmtRp(h.budget - h.total)) : '';
+                const items = (h.items || []).slice(0, 3).map(it => escapeHtml(it.name)).join(', ');
+                const more = (h.items || []).length > 3 ? ' +' + (h.items.length - 3) + ' lain' : '';
                 return `
                     <div class="hist-item">
                         <div>
                             <div class="hist-date">${dateStr}</div>
-                            <div class="hist-meta">${h.qty} barang · budget ${h.budget > 0 ? fmtRp(h.budget) : '—'}${info}</div>
+                            <div class="hist-meta">${h.qty} barang · ${items}${more}${info}</div>
                         </div>
                         <div style="text-align:right">
                             <div class="hist-total">${fmtRp(h.total)}</div>
@@ -1049,27 +590,11 @@
     loadState();
     if (state.budget) document.getElementById('budgetInput').value = state.budget.toLocaleString('id-ID');
     renderCart();
-    updateFramePos();
+    renderChips();
 
-    // Pra-muat mesin OCR di belakang layar supaya scan pertama tidak menunggu lama
-    setTimeout(() => { ensureOcrWorker().catch(() => {}); }, 2500);
-
+    const entryInput = document.getElementById('entryInput');
+    entryInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitEntry(); } });
     document.getElementById('historyModal').addEventListener('click', e => { if (e.target.id === 'historyModal') closeHistory(); });
-    // Ketuk layar scan untuk memindahkan kotak panduan ke posisi ketukan
-    const scanWrapEl = document.getElementById('scanVideoWrap');
-    scanWrapEl.addEventListener('click', e => {
-        const r = scanWrapEl.getBoundingClientRect();
-        const yFrac = (e.clientY - r.top) / r.height;
-        bandPos = Math.min(1, Math.max(0, (yFrac * 100 - 15) / 70));
-        updateFramePos();
-    });
-    // Tombol kontrol (▲▼💡🔍) tidak boleh memicu pergeseran kotak
-    const scanCtrlEl = document.querySelector('.scan-ctrl');
-    if (scanCtrlEl) scanCtrlEl.addEventListener('click', e => e.stopPropagation());
-    // Peringatan dini bila dibuka dari webview WA/IG/FB
-    if (isWebview()) { const wb = document.getElementById('webviewBanner'); if (wb) wb.style.display = 'block'; }
-    window.addEventListener('pagehide', closeScanScreen);
-    window.addEventListener('beforeunload', closeScanScreen);
 </script>
 </body>
 </html>
